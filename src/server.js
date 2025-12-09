@@ -1406,19 +1406,43 @@ const HOST = '0.0.0.0';
 // Vérifier la connexion à la base de données avant de démarrer
 async function startServer() {
   try {
-    // Test de connexion à Prisma
+    // Test de connexion à Prisma avec timeout
+    console.log('[STARTUP] Testing database connection...');
+    console.log('[STARTUP] DATABASE_URL:', process.env.DATABASE_URL ? 'Configured' : 'NOT SET');
+    
+    const startTime = Date.now();
     await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ Database connection successful');
+    const duration = Date.now() - startTime;
+    
+    console.log(`✅ Database connection successful (${duration}ms)`);
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
-    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Configured' : 'NOT SET');
-    process.exit(1);
+    console.error('[ERROR] Stack:', error.stack);
+    console.error('[ERROR] DATABASE_URL:', process.env.DATABASE_URL || 'NOT SET');
+    
+    // Ne pas quitter immédiatement, laisser le serveur démarrer quand même
+    // pour que les health checks puissent fonctionner
+    console.warn('⚠️  Starting server without database connection...');
   }
 
-  app.listen(PORT, HOST, () => {
-    console.log(`🚀 TC Outil - API running on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`🚀 TC Outil - API running on http://${HOST}:${PORT}`);
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📝 NODE_ENV=${process.env.NODE_ENV}`);
+    console.log(`🔌 PORT=${PORT}`);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+      console.log('Server closed');
+      prisma.$disconnect().then(() => process.exit(0));
+    });
   });
 }
 
-startServer();
+startServer().catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
