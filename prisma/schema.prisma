@@ -1,0 +1,270 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Vehicle {
+  parc        String   @id
+  type        String
+  modele      String
+  immat       String
+  km          Int
+  tauxSante   Int
+  statut      String
+  createdAt   DateTime @default(now())
+
+  // Déjà ajoutés chez toi
+  annee       Int?
+  boite       String?
+  moteur      String?
+  portes      Int?
+  girouette   String?
+  clim        String?
+  pmr         Boolean  @default(false)
+  ct          DateTime?
+  photosJson  String?
+
+  // --- NOUVEAUX CHAMPS pour la fiche détaillée ---
+  marque            String?   // "MAN", "Mercedes", etc.
+  motorisationInfo  String?   // ex: "(42 L/100km)" ou "Euro 6"
+  places            Int?
+  miseEnService     DateTime?
+  derniereRevision  DateTime?
+  depot             String?
+  photoUrl          String?
+
+  // Barres / scores (0-100)
+  proprete          Int       @default(100)
+  etatTechnique     Int       @default(100)
+  etatInterieur     Int       @default(100)
+
+  // Listes & options (JSON sérialisé)
+  lignesJson        String?   // ex: ["815","C","15"]
+  optionsUsineJson  String?   // { "Agenouillement": true, ... }
+  optionsAtelierJson String?  // { "Ports USB": true, ... }
+  optionsSaeivJson  String?   // { "Bandeau lumineux": true, ... }
+
+  // Relations
+  statesHistory     VehicleStateHistory[]
+  interventions     Intervention[]
+}
+
+model VehicleStateHistory {
+  id          Int      @id @default(autoincrement())
+  vehicleParc String
+  fromStatus  String?
+  toStatus    String
+  note        String?
+  changedAt   DateTime @default(now())
+
+  vehicle     Vehicle  @relation(fields: [vehicleParc], references: [parc], onDelete: Cascade)
+
+  @@index([vehicleParc, changedAt])
+}
+
+model Intervention {
+  id            Int      @id @default(autoincrement())
+  vehicleParc   String
+  libelle       String
+  datePrevue    DateTime?
+  dateEffective DateTime?
+  commentaire   String?
+  statut        String   // "planifiée" | "en_cours" | "terminée"
+
+  vehicle       Vehicle  @relation(fields: [vehicleParc], references: [parc], onDelete: Cascade)
+
+  @@index([vehicleParc, statut])
+}
+
+model Conducteur {
+  id              String   @id @default(cuid())
+  nom             String
+  prenom          String
+  matricule       String   @unique
+  permis          String   // "D", "D+E", etc.
+  embauche        DateTime
+  statut          String   // "Actif", "En congé", "Inactif"
+  typeContrat     String   // "CDI", "CDD", etc.
+  phone           String?
+  email           String?
+  telephone       String?
+
+  // Formations
+  busArticules    Boolean  @default(false)
+  autocars        Boolean  @default(false)
+  pmr             Boolean  @default(false)
+  vehiMarchandises Boolean @default(false)
+
+  // Certifications (JSON format: { validite: "2025-12-31", statut: "Valide" })
+  carteChronosJson String?
+  fcoJson         String?
+  securiteJson    String?
+
+  // Médical & Vaccinations
+  visiteMedicaleJson String?
+  vaccinationsJson   String?
+
+  // Contrat (JSON: { heuresSemaine, dateDebut, dateFin, type, notes, documentUrl })
+  contratJson     String?
+
+  // Absences (JSON array: [{ dateDebut, dateFin, type, motif }])
+  absencesJson    String?
+
+  // Horaires réglementaires
+  heuresMax       Int      @default(35)  // heures par semaine
+  heuresReglementaires Int @default(35)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  services        Service[]
+  pointages       Pointage[]
+
+  @@index([matricule, statut])
+}
+
+model Ligne {
+  id              String   @id @default(cuid())
+  numero          String   @unique
+  nom             String
+  typesVehicules  String   // JSON array: ["Minibus", "Autobus", "Autocar"]
+  statut          String   @default("Actif") // "Actif", "Suspendue", "Archivée"
+  description     String?
+  heureDebut      String?  // Format HH:mm - Premier départ du dépôt
+  heureFin        String?  // Format HH:mm - Dernier arrivé au dépôt
+  
+  // Calendrier d'exploitation (JSON: lun, mar, mer, jeu, ven, sam, dim = true/false)
+  calendrierJson  String?  // {"lundi":true,"mardi":true,"mercredi":true,"jeudi":true,"vendredi":true,"samedi":false,"dimanche":false}
+  
+  // Contraintes d'exploitation
+  contraintes     String?  // JSON array: ["Vacances scolaires", "Navette professionnelle", "Période estivale", etc.]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  sens            Sens[]
+  services        Service[]
+  trajets         Trajet[]
+
+  @@index([numero, statut])
+}
+
+model Sens {
+  id              String   @id @default(cuid())
+  ligneId         String
+  ligne           Ligne    @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  
+  nom             String   // ex: "Aller", "Retour", "Bidirectionnel"
+  direction       String?  // ex: "Gare SNCF → Centre Ville"
+  ordre           Int      @default(1)
+  statut          String   @default("Actif")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  services        Service[]
+
+  @@index([ligneId, statut])
+  @@unique([ligneId, nom])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  ligneId         String
+  ligne           Ligne    @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  
+  sensId          String?  // nullable - peut ne pas avoir sens attribué initialement
+  sens            Sens?    @relation(fields: [sensId], references: [id], onDelete: SetNull)
+  
+  conducteurId    String?  // nullable - service peut ne pas avoir conducteur attribué
+  conducteur      Conducteur? @relation(fields: [conducteurId], references: [id], onDelete: SetNull)
+  
+  date            DateTime
+  heureDebut      String   // "06:30"
+  heureFin        String   // "18:45"
+  statut          String   @default("Planifiée") // "Planifiée", "En cours", "Terminée", "Annulée"
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pointages       Pointage[]
+
+  @@index([ligneId, date, statut])
+  @@index([conducteurId])
+}
+
+model Pointage {
+  id              String   @id @default(cuid())
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  conducteurId    String
+  conducteur      Conducteur @relation(fields: [conducteurId], references: [id], onDelete: Cascade)
+  
+  validatedBy     String   // "Régulateur" ou "Chef d'Équipe"
+  validatedAt     DateTime @default(now())
+  
+  vehicleType     String?  // Type de véhicule attribué
+  permisChecked   Boolean  @default(false)
+  chronometerChecked Boolean @default(false) // Pour autocars
+  
+  createdAt       DateTime @default(now())
+
+  @@index([serviceId, validatedAt])
+  @@index([conducteurId])
+}
+
+model SAEIV {
+  id              String   @id @default(cuid())
+  numero          String   @unique
+  libelle         String
+  type            String   // "Affichage", "Sonorisation", "WiFi", "USB", "Caméra", "Ventilation", "Accessibilité"
+  statut          String   @default("Actif") // "Actif", "Maintenance", "Arrêté", "Défaillant"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([numero, statut])
+}
+
+model Trajet {
+  id              String   @id @default(cuid())
+  ligneId         String
+  ligne           Ligne    @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  
+  sensId          String?  // Optionnel - peut être associé à un sens spécifique
+  nom             String   // ex: "Gare SNCF - Centre Ville", "Aller simple"
+  description     String?
+  ordre           Int      @default(1) // Ordre du trajet pour cette ligne
+  statut          String   @default("Actif")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  arrets          Arret[]
+
+  @@index([ligneId, statut])
+  @@unique([ligneId, nom])
+}
+
+model Arret {
+  id              String   @id @default(cuid())
+  trajetId        String
+  trajet          Trajet   @relation(fields: [trajetId], references: [id], onDelete: Cascade)
+  
+  nom             String   // ex: "Gare SNCF", "Place de l'Église"
+  adresse         String?
+  ordre           Int      // Numéro de l'arrêt dans le trajet (1, 2, 3...)
+  tempsArriveeAntecedent Int @default(0) // Temps en minutes depuis l'arrêt précédent
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([trajetId, ordre])
+  @@unique([trajetId, ordre])
+}
+
