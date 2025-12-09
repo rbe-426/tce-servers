@@ -1,1 +1,1 @@
-web: node src/server-minimal.js
+web: node server.js
