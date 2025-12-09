@@ -1379,7 +1379,8 @@ app.delete('/api/arrets/:id', async (req, res) => {
 });
 
 // ---------- start ----------
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
+const HOST = '0.0.0.0';
 
 // Vérifier la connexion à la base de données avant de démarrer
 async function startServer() {
@@ -1393,8 +1394,8 @@ async function startServer() {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
-    console.log(`🚀 TC Outil - API running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 TC Outil - API running on http://0.0.0.0:${PORT}`);
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
