@@ -29,5 +29,9 @@
     "@types/node": "^20.3.1",
     "nodemon": "^3.0.1",
     "prisma": "^5.0.0"
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
   }
 }
