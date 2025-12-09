@@ -6,7 +6,32 @@ import { PrismaClient } from '@prisma/client';
 const app = express();
 const prisma = new PrismaClient();
 
-app.use(cors());
+// Configuration CORS pour production et développement
+const allowedOrigins = [
+  'http://localhost:5173',           // Développement local frontend
+  'http://localhost:3000',           // Développement local (alternative)
+  'https://www.tce-interne.fr',      // Production Vercel (domaine custom)
+  'https://tce-interne.vercel.app',  // Production Vercel (domaine vercel)
+  'https://tce-interne.fr',          // Production sans www
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Permettre les requêtes sans origin (comme Postman, curl, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Requête bloquée depuis: ${origin}`);
+      callback(new Error('CORS non autorisé'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ---------- helpers ----------
