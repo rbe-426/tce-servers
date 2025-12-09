@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: tce-backend
+    env: node
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Europe/Paris
