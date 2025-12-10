@@ -4,7 +4,14 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 
 const app = express();
-const prisma = new PrismaClient();
+let prisma; // init guarded to avoid startup crash when DB is unreachable
+let prismaReady = false;
+
+try {
+  prisma = new PrismaClient();
+} catch (e) {
+  console.error('Prisma initialization failed ->', e.message);
+}
 
 // Configuration CORS simple pour production
 // En production, accepter les domaines spécifiques
@@ -36,6 +43,22 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json());
+
+// Short-circuit requests that need DB when Prisma is not ready
+const noDbPaths = new Set([
+  '/',
+  '/health',
+  '/api/today',
+  '/api/server-time',
+  '/api/cors-test',
+]);
+
+app.use((req, res, next) => {
+  if (!prismaReady && !noDbPaths.has(req.path)) {
+    return res.status(503).json({ error: 'Database unavailable, retry shortly' });
+  }
+  next();
+});
 
 // ---------- helpers ----------
 function parseDateFlexible(val) {
@@ -78,6 +101,10 @@ app.get('/', (_req, res) => res.send('TC Outil API - Voyages TC Essonnes'));
 
 // Health check endpoint
 app.get('/health', async (_req, res) => {
+  if (!prisma) {
+    return res.status(503).json({ status: 'degraded', error: 'Prisma not initialized' });
+  }
+
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ 
@@ -1418,10 +1445,18 @@ async function startServer() {
     // Test de connexion à Prisma avec timeout
     console.log('[STARTUP] Testing database connection...');
     console.log('[STARTUP] DATABASE_URL:', process.env.DATABASE_URL ? 'Configured' : 'NOT SET');
-    
+
+    if (!prisma) {
+      throw new Error('Prisma client not initialized');
+    }
+
     const startTime = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DB check timeout (5s)')), 5000)),
+    ]);
     const duration = Date.now() - startTime;
+    prismaReady = true;
     
     console.log(`✅ Database connection successful (${duration}ms)`);
   } catch (error) {
