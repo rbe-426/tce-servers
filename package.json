@@ -7,7 +7,7 @@
     "start": "node http-server.js",
     "start:api": "node http-server.js",
     "start:full": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node http-server.js",
     "prisma": "prisma",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
