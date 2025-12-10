@@ -1436,7 +1436,7 @@ app.delete('/api/arrets/:id', async (req, res) => {
 });
 
 // ---------- start ----------
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';
 
 // Vérifier la connexion à la base de données avant de démarrer
