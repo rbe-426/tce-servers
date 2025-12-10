@@ -1176,6 +1176,21 @@ app.post('/api/services-hierarchie', async (req, res) => {
       }
     }
 
+    // Anti-duplication : si un service identique existe déjà (même sens, date, début, fin), on le renvoie tel quel
+    const existing = await prisma.service.findFirst({
+      where: {
+        sensId: b.sensId,
+        date: b.date ? new Date(b.date) : undefined,
+        heureDebut: b.heureDebut,
+        heureFin: b.heureFin,
+      },
+      include: { conducteur: true, sens: true }
+    });
+
+    if (existing) {
+      return res.json({ ...existing, duplicate: true });
+    }
+
     const service = await prisma.service.create({
       data: {
         sensId: b.sensId,
