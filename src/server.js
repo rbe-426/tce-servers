@@ -41,13 +41,20 @@ const corsOptions = {
 // Middleware CORS global
 app.use(cors(corsOptions));
 
-// Headers CORS même sur 404/500
+// Headers CORS additionnels même sur 404/500/erreurs
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  console.log(`[CORS] ${req.method} ${req.path} from ${origin}`);
+  
+  // Répondre immédiatement aux OPTIONS preflight
   if (req.method === 'OPTIONS') {
+    console.log(`[CORS] ✅ OPTIONS preflight allowed`);
     return res.sendStatus(200);
   }
   next();
@@ -1446,7 +1453,7 @@ app.delete('/api/arrets/:id', async (req, res) => {
 });
 
 // ---------- start ----------
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 
 console.log('[STARTUP] Configured PORT:', PORT);
