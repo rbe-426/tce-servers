@@ -1768,7 +1768,10 @@ async function processImportLignes(csvText, res) {
               const targetDay = dayMap[jour];
               const currentDay = serviceDate.getDay();
               let daysToAdd = targetDay - currentDay;
-              if (daysToAdd < 0) daysToAdd += 7;
+              
+              // Si le jour est dans le passé cette semaine, prendre la semaine prochaine
+              // Si c'est le même jour, aussi prendre la semaine prochaine
+              if (daysToAdd <= 0) daysToAdd += 7;
 
               serviceDate.setDate(serviceDate.getDate() + daysToAdd);
 
