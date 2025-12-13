@@ -199,8 +199,19 @@ app.get('/api/diagnostic', async (_req, res) => {
 
 // LIST
 app.get('/api/vehicles', async (_req, res) => {
-  const data = await prisma.vehicle.findMany({ orderBy: { parc: 'asc' } });
-  res.json(data);
+  try {
+    console.log('[API] GET /api/vehicles - prismaReady:', prismaReady);
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+    const data = await prisma.vehicle.findMany({ orderBy: { parc: 'asc' } });
+    console.log('[API] GET /api/vehicles - found:', data.length);
+    res.json(data);
+  } catch (e) {
+    console.error('GET /api/vehicles ERROR ->', e.message);
+    console.error('Stack:', e.stack);
+    res.status(500).json({ error: String(e.message) });
+  }
 });
 
 // DETAIL
@@ -349,7 +360,7 @@ app.get('/api/conducteurs', async (_req, res) => {
   } catch (e) {
     console.error('GET /api/conducteurs ERROR ->', e.message);
     console.error('Stack:', e.stack);
-    res.status(400).json({ error: String(e.message) });
+    res.status(500).json({ error: String(e.message) });
   }
 });
 
@@ -648,7 +659,7 @@ app.get('/api/services', async (req, res) => {
   } catch (e) {
     console.error('GET /api/services ERROR ->', e.message);
     console.error('Stack:', e.stack);
-    res.status(400).json({ error: String(e.message) });
+    res.status(500).json({ error: String(e.message) });
   }
 });
 
@@ -1524,26 +1535,6 @@ async function startServer() {
     prismaReady = true;
     
     console.log(`✅ Database connection successful (${duration}ms)`);
-    
-    // Créer les tables si elles n'existent pas
-    console.log('[STARTUP] Ensuring database schema...');
-    try {
-      await prisma.$executeRawUnsafe('SELECT 1 FROM "Vehicle" LIMIT 1');
-      console.log('[STARTUP] ✅ Tables already exist');
-    } catch (e) {
-      console.log('[STARTUP] Tables not found, running db push...');
-      try {
-        const { execSync } = await import('child_process');
-        execSync('prisma db push --skip-generate --skip-validate --accept-data-loss', {
-          cwd: process.cwd(),
-          stdio: 'inherit',
-          env: { ...process.env },
-        });
-        console.log('[STARTUP] ✅ Schema pushed successfully');
-      } catch (pushError) {
-        console.warn('[STARTUP] ⚠️  db push failed:', pushError.message);
-      }
-    }
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     console.error('[ERROR] Stack:', error.stack);
