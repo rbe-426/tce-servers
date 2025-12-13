@@ -1649,8 +1649,26 @@ async function processImportLignes(csvText, res) {
   let imported = 0;
   const errors = [];
   const trajetsMap = new Map(); // Tracker: trajet -> Prisma object
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  
+  // Obtenir la date d'aujourd'hui en heure Paris
+  const todayStr = getTodayDateParis();
+  const [year, month, day] = todayStr.split('-').map(Number);
+  
+  // Créer une date pour "aujourd'hui" en heure Paris
+  // On utilise une date UTC pour éviter les décalages timezone
+  const today = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  
+  // Obtenir le jour de la semaine en heure Paris
+  const tempFormatter = new Intl.DateTimeFormat('fr-FR', { 
+    timeZone: 'Europe/Paris',
+    weekday: 'long'
+  });
+  const todayDayName = tempFormatter.format(today).toLowerCase();
+  const dayNameMap = {
+    'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4,
+    'vendredi': 5, 'samedi': 6, 'dimanche': 0
+  };
+  const todayDayOfWeek = dayNameMap[todayDayName] || 1;
 
   // ============ PHASE 1: Importer les lignes, sens, trajets et services ============
   for (let i = 0; i < lignesData.rows.length; i++) {
@@ -1680,7 +1698,7 @@ async function processImportLignes(csvText, res) {
         create: {
           numero,
           nom,
-          typesVehicules: JSON.stringify([type || 'Autobus']),
+          typesVehicules: JSON.stringify(type ? [type] : ['Standard']),
           heureDebut,
           heureFin,
           calendrierJson: JSON.stringify(calendrier),
@@ -1688,7 +1706,7 @@ async function processImportLignes(csvText, res) {
         },
         update: {
           nom,
-          typesVehicules: JSON.stringify([type || 'Autobus']),
+          typesVehicules: JSON.stringify(type ? [type] : ['Standard']),
           heureDebut,
           heureFin,
           calendrierJson: JSON.stringify(calendrier),
@@ -1766,7 +1784,7 @@ async function processImportLignes(csvText, res) {
               };
 
               const targetDay = dayMap[jour];
-              const currentDay = serviceDate.getDay();
+              const currentDay = todayDayOfWeek; // Utiliser le jour correct en heure Paris
               let daysToAdd = targetDay - currentDay;
               
               // Si le jour est dans le passé cette semaine, prendre la semaine prochaine
