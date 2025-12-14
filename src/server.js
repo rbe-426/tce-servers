@@ -376,7 +376,111 @@ app.delete('/api/vehicles/:parc', async (req, res) => {
 
 // ========== CONDUCTEURS ==========
 
-// LIST
+// GET /api/conducteurs/jurhe/sync - Synchroniser depuis JURHE
+app.get('/api/conducteurs/jurhe/sync', async (_req, res) => {
+  try {
+    console.log('[JURHE] GET /api/conducteurs/jurhe/sync - Synchronisation JURHE');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const jurheUrl = process.env.JURHE_API_URL || 'https://www.tce-interne.fr/api/conducteurs';
+    const jurheKey = process.env.JURHE_API_KEY;
+
+    if (!jurheUrl) {
+      console.warn('[JURHE] JURHE_API_URL non configurée, utilisant données locales');
+      const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
+      return res.json({
+        source: 'local',
+        conducteurs,
+        message: 'Données locales (JURHE non configurée)',
+      });
+    }
+
+    let jurheData = [];
+    try {
+      console.log(`[JURHE] Appel API JURHE: ${jurheUrl}`);
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (jurheKey) {
+        headers['Authorization'] = `Bearer ${jurheKey}`;
+      }
+
+      const response = await fetch(jurheUrl, { headers });
+      if (!response.ok) {
+        throw new Error(`JURHE HTTP ${response.status}`);
+      }
+      jurheData = await response.json();
+      console.log(`[JURHE] Reçu ${jurheData.length || 0} conducteurs de JURHE`);
+    } catch (error) {
+      console.error('[JURHE] Erreur appel JURHE:', error.message);
+      // Fallback sur données locales
+      const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
+      return res.json({
+        source: 'fallback',
+        conducteurs,
+        error: error.message,
+        message: 'JURHE indisponible, données locales',
+      });
+    }
+
+    // Synchroniser avec la BD locale
+    let imported = 0;
+    const errors = [];
+
+    for (const conductor of jurheData) {
+      try {
+        // Mapper les champs JURHE → BD locale
+        await prisma.conducteur.upsert({
+          where: { matricule: conductor.matricule || conductor.id },
+          update: {
+            nom: conductor.nom || conductor.lastName,
+            prenom: conductor.prenom || conductor.firstName,
+            permis: conductor.permis || conductor.licenseType,
+            statut: conductor.statut || conductor.status || 'Actif',
+            typeContrat: conductor.typeContrat || conductor.contractType,
+            phone: conductor.telephone || conductor.phone,
+            email: conductor.email,
+            embauche: conductor.dateEmbauche ? new Date(conductor.dateEmbauche) : new Date(),
+          },
+          create: {
+            nom: conductor.nom || conductor.lastName,
+            prenom: conductor.prenom || conductor.firstName,
+            matricule: conductor.matricule || conductor.id,
+            permis: conductor.permis || conductor.licenseType || 'D',
+            statut: conductor.statut || conductor.status || 'Actif',
+            typeContrat: conductor.typeContrat || conductor.contractType || 'CDI',
+            phone: conductor.telephone || conductor.phone,
+            email: conductor.email,
+            embauche: conductor.dateEmbauche ? new Date(conductor.dateEmbauche) : new Date(),
+          },
+        });
+        imported++;
+      } catch (error) {
+        errors.push(`${conductor.nom || conductor.id}: ${error.message}`);
+      }
+    }
+
+    // Retourner les données mises à jour depuis la BD
+    const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
+
+    console.log(`[JURHE] Synchronisation terminée: ${imported} importés, ${errors.length} erreurs`);
+    res.json({
+      source: 'jurhe',
+      conducteurs,
+      imported,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `${imported} conducteurs synchronisés depuis JURHE`,
+    });
+  } catch (error) {
+    console.error('[JURHE] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// LIST - Récupérer les conducteurs (depuis BD, qui peut être synchronisée avec JURHE)
 app.get('/api/conducteurs', async (_req, res) => {
   try {
     console.log('[API] GET /api/conducteurs - prismaReady:', prismaReady);
