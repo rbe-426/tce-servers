@@ -2015,6 +2015,226 @@ async function processImportVehicles(csvText, res) {
   });
 }
 
+// ============ ATELIER / MOUVEMENTS ATELIERS ============
+
+// GET /api/mouvements - Tous les mouvements (historique des changements de statut)
+app.get('/api/mouvements', async (_req, res) => {
+  try {
+    console.log('[ATELIER] GET /api/mouvements');
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const mouvements = await prisma.vehicleStateHistory.findMany({
+      include: {
+        vehicle: {
+          select: {
+            parc: true,
+            type: true,
+            immat: true,
+            tauxSante: true,
+            statut: true,
+          },
+        },
+      },
+      orderBy: { changedAt: 'desc' },
+      take: 100, // Derniers 100 mouvements
+    });
+
+    res.json(mouvements);
+  } catch (error) {
+    console.error('[ATELIER] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/mouvements/:parc - Mouvements d'un véhicule spécifique
+app.get('/api/mouvements/:parc', async (req, res) => {
+  try {
+    const { parc } = req.params;
+    console.log(`[ATELIER] GET /api/mouvements/${parc}`);
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const mouvements = await prisma.vehicleStateHistory.findMany({
+      where: { vehicleParc: parc },
+      include: {
+        vehicle: {
+          select: {
+            parc: true,
+            type: true,
+            immat: true,
+            tauxSante: true,
+            statut: true,
+          },
+        },
+      },
+      orderBy: { changedAt: 'desc' },
+    });
+
+    res.json(mouvements);
+  } catch (error) {
+    console.error('[ATELIER] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/mouvements - Créer un nouveau mouvement (enregistrer un changement de statut)
+app.post('/api/mouvements', async (req, res) => {
+  try {
+    const { vehicleParc, fromStatus, toStatus, note } = req.body;
+    console.log(`[ATELIER] POST /api/mouvements - ${vehicleParc}: ${fromStatus} → ${toStatus}`);
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    if (!vehicleParc || !toStatus) {
+      return res.status(400).json({ error: 'vehicleParc et toStatus requis' });
+    }
+
+    // Vérifier que le véhicule existe
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { parc: vehicleParc },
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({ error: `Véhicule ${vehicleParc} non trouvé` });
+    }
+
+    // Créer le mouvement
+    const mouvement = await prisma.vehicleStateHistory.create({
+      data: {
+        vehicleParc,
+        fromStatus: fromStatus || vehicle.statut,
+        toStatus,
+        note,
+      },
+      include: {
+        vehicle: {
+          select: {
+            parc: true,
+            type: true,
+            immat: true,
+            tauxSante: true,
+            statut: true,
+          },
+        },
+      },
+    });
+
+    // Mettre à jour le statut du véhicule
+    await prisma.vehicle.update({
+      where: { parc: vehicleParc },
+      data: { statut: toStatus },
+    });
+
+    res.json(mouvement);
+  } catch (error) {
+    console.error('[ATELIER] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/ateliers - Véhicules actuellement en atelier
+app.get('/api/ateliers', async (_req, res) => {
+  try {
+    console.log('[ATELIER] GET /api/ateliers');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const vehiculesEnAtelier = await prisma.vehicle.findMany({
+      where: {
+        statut: {
+          in: ['Aux Ateliers', 'Au CT', 'Indisponible', 'Entretien'],
+        },
+      },
+      include: {
+        statesHistory: {
+          orderBy: { changedAt: 'desc' },
+          take: 5, // Derniers 5 mouvements
+        },
+        interventions: {
+          where: { statut: { in: ['planifiée', 'en_cours'] } },
+          orderBy: { datePrevue: 'asc' },
+        },
+      },
+    });
+
+    // Grouper par statut
+    const grouped = {
+      'Aux Ateliers': vehiculesEnAtelier.filter(v => v.statut === 'Aux Ateliers'),
+      'Au CT': vehiculesEnAtelier.filter(v => v.statut === 'Au CT'),
+      'Indisponible': vehiculesEnAtelier.filter(v => v.statut === 'Indisponible'),
+      'Entretien': vehiculesEnAtelier.filter(v => v.statut === 'Entretien'),
+    };
+
+    res.json({
+      total: vehiculesEnAtelier.length,
+      parStatut: grouped,
+      details: vehiculesEnAtelier,
+    });
+  } catch (error) {
+    console.error('[ATELIER] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/ateliers/stats - Statistiques sur les ateliers
+app.get('/api/ateliers/stats', async (_req, res) => {
+  try {
+    console.log('[ATELIER] GET /api/ateliers/stats');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const stats = await prisma.vehicle.groupBy({
+      by: ['statut'],
+      _count: {
+        parc: true,
+      },
+      where: {
+        statut: {
+          in: ['Aux Ateliers', 'Au CT', 'Indisponible', 'Entretien'],
+        },
+      },
+    });
+
+    const typesStats = await prisma.vehicle.groupBy({
+      by: ['type'],
+      _count: {
+        parc: true,
+      },
+      where: {
+        statut: {
+          in: ['Aux Ateliers', 'Au CT', 'Indisponible', 'Entretien'],
+        },
+      },
+    });
+
+    res.json({
+      parStatut: stats,
+      parType: typesStats,
+      derniersMouvements: await prisma.vehicleStateHistory.findMany({
+        orderBy: { changedAt: 'desc' },
+        take: 10,
+        include: {
+          vehicle: { select: { parc: true, type: true, immat: true } },
+        },
+      }),
+    });
+  } catch (error) {
+    console.error('[ATELIER] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ---------- error handler (global) ----------
 app.use((err, req, res, next) => {
   console.error('[ERROR] Unhandled error:', err.message);
