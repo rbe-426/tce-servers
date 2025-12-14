@@ -2104,6 +2104,140 @@ app.post('/api/maintenance/deduplicate-services', async (_req, res) => {
   }
 });
 
+// POST /api/seed - Créer des données d'exemple (pour tester après nettoyage BD)
+app.post('/api/seed', async (_req, res) => {
+  try {
+    console.log('[SEED] POST /api/seed - Création données d\'exemple');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    // Créer les lignes d'exemple
+    const lignes = [
+      {
+        numero: '815',
+        nom: 'Ligne 815 - Essonne Express',
+        typesVehicules: ['TCP - Autobus Standard'],
+        heureDebut: '06:00',
+        heureFin: '22:00',
+        calendrierJson: JSON.stringify({ lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: true, dimanche: false }),
+      },
+      {
+        numero: 'C',
+        nom: 'Ligne C - Circul\'Air',
+        typesVehicules: ['TCP - Minibus'],
+        heureDebut: '07:00',
+        heureFin: '20:00',
+        calendrierJson: JSON.stringify({ lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: true, dimanche: true }),
+      },
+      {
+        numero: '15',
+        nom: 'Ligne 15 - RER Bus',
+        typesVehicules: ['TCP - Autobus articulé'],
+        heureDebut: '05:30',
+        heureFin: '23:00',
+        calendrierJson: JSON.stringify({ lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: true, dimanche: true }),
+      },
+    ];
+
+    let createdCount = 0;
+
+    for (const ligneData of lignes) {
+      const ligne = await prisma.ligne.upsert({
+        where: { numero: ligneData.numero },
+        update: {},
+        create: ligneData,
+      });
+
+      // Créer sens et services
+      const sensData = [
+        { nom: 'Aller', direction: 'Gare SNCF → Gare routière' },
+        { nom: 'Retour', direction: 'Gare routière → Gare SNCF' },
+      ];
+
+      for (const sens of sensData) {
+        const sensObj = await prisma.sens.upsert({
+          where: {
+            ligneId_nom: {
+              ligneId: ligne.id,
+              nom: sens.nom,
+            },
+          },
+          update: {},
+          create: {
+            ligneId: ligne.id,
+            ...sens,
+            statut: 'Actif',
+          },
+        });
+
+        // Créer services pour cette semaine
+        const today = new Date();
+        const calendrier = JSON.parse(ligne.calendrierJson);
+        const dayMap = { 'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4, 'vendredi': 5, 'samedi': 6, 'dimanche': 0 };
+
+        for (const dayName in calendrier) {
+          if (calendrier[dayName]) {
+            const serviceDate = new Date(today);
+            const targetDay = dayMap[dayName];
+            const currentDay = today.getDay();
+            let daysToAdd = targetDay - currentDay;
+            if (daysToAdd <= 0) daysToAdd += 7;
+            serviceDate.setDate(serviceDate.getDate() + daysToAdd);
+
+            // Créer 2-3 services par jour
+            const serviceTimes = [
+              { start: '07:00', end: '14:00' },
+              { start: '14:00', end: '21:00' },
+              ...(dayName === 'samedi' ? [] : []),
+            ];
+
+            for (const time of serviceTimes) {
+              const existingService = await prisma.service.findFirst({
+                where: {
+                  ligneId: ligne.id,
+                  date: {
+                    gte: new Date(serviceDate.toISOString().split('T')[0]),
+                    lt: new Date(new Date(serviceDate.toISOString().split('T')[0]).getTime() + 24 * 60 * 60 * 1000),
+                  },
+                  heureDebut: time.start,
+                  heureFin: time.end,
+                },
+              });
+
+              if (!existingService) {
+                await prisma.service.create({
+                  data: {
+                    ligneId: ligne.id,
+                    sensId: sensObj.id,
+                    date: serviceDate,
+                    heureDebut: time.start,
+                    heureFin: time.end,
+                    statut: 'Planifiée',
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+
+      createdCount++;
+    }
+
+    console.log(`[SEED] ${createdCount} lignes créées avec services`);
+    res.json({
+      message: `Données d'exemple créées: ${createdCount} lignes`,
+      lignes: createdCount,
+      ready: true,
+    });
+  } catch (error) {
+    console.error('[SEED] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ ATELIER / MOUVEMENTS ATELIERS ============
 
 // GET /api/mouvements - Tous les mouvements (historique des changements de statut)
