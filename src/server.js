@@ -683,8 +683,23 @@ app.get('/api/services', async (req, res) => {
       include: { ligne: true, conducteur: true },
       orderBy: { date: 'asc' },
     });
-    console.log('[API] GET /api/services - found:', services.length);
-    res.json(services);
+
+    // Dédupliquer les services (même ligne, même date, mêmes heures = garder que le premier)
+    const uniqueServices = [];
+    const seenKey = new Set();
+
+    for (const service of services) {
+      const dateStr = service.date.toISOString().split('T')[0];
+      const key = `${service.ligneId}-${dateStr}-${service.heureDebut}-${service.heureFin}`;
+      
+      if (!seenKey.has(key)) {
+        seenKey.add(key);
+        uniqueServices.push(service);
+      }
+    }
+
+    console.log(`[API] GET /api/services - found: ${services.length}, unique: ${uniqueServices.length}`);
+    res.json(uniqueServices);
   } catch (e) {
     console.error('GET /api/services ERROR ->', e.message);
     console.error('Stack:', e.stack);
@@ -1805,19 +1820,37 @@ async function processImportLignes(csvText, res) {
 
               serviceDate.setDate(serviceDate.getDate() + daysToAdd);
 
-              // Créer le service
-              await prisma.service.create({
-                data: {
+              // Vérifier si un service identique existe déjà pour éviter les doublons
+              // (même ligne, même date, mêmes heures)
+              const dateStr = serviceDate.toISOString().split('T')[0];
+              const existingService = await prisma.service.findFirst({
+                where: {
                   ligneId: ligne.id,
-                  sensId: sens?.id || null,
-                  date: serviceDate,
+                  date: {
+                    gte: new Date(dateStr),
+                    lt: new Date(new Date(dateStr).getTime() + 24 * 60 * 60 * 1000),
+                  },
                   heureDebut: heureDebuitService,
                   heureFin: heureFinService,
-                  statut: 'Planifiée',
                 },
-              }).catch(() => {
-                // Ignorer les doublons
               });
+
+              // Créer le service seulement s'il n'existe pas déjà
+              if (!existingService) {
+                await prisma.service.create({
+                  data: {
+                    ligneId: ligne.id,
+                    sensId: sens?.id || null,
+                    date: serviceDate,
+                    heureDebut: heureDebuitService,
+                    heureFin: heureFinService,
+                    statut: 'Planifiée',
+                  },
+                }).catch((err) => {
+                  console.warn(`[IMPORT] Service déjà existant ou erreur: ${err.message}`);
+                  // Ignorer les doublons
+                });
+              }
             }
           }
         }
@@ -2014,6 +2047,62 @@ async function processImportVehicles(csvText, res) {
     message: `${imported} véhicule(s) importé(s) avec succès`,
   });
 }
+
+// ============ ATELIER / MOUVEMENTS ATELIERS ============
+
+// POST /api/maintenance/deduplicate-services - Nettoyer les doublons de services
+app.post('/api/maintenance/deduplicate-services', async (_req, res) => {
+  try {
+    console.log('[MAINTENANCE] Déduplication des services...');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    // Récupérer tous les services
+    const allServices = await prisma.service.findMany({
+      orderBy: [{ ligneId: 'asc' }, { date: 'asc' }, { heureDebut: 'asc' }],
+    });
+
+    let deletedCount = 0;
+    const seenKey = new Set();
+    const toDelete = [];
+
+    // Identifier les doublons
+    for (const service of allServices) {
+      const dateStr = service.date.toISOString().split('T')[0];
+      const key = `${service.ligneId}-${dateStr}-${service.heureDebut}-${service.heureFin}`;
+
+      if (seenKey.has(key)) {
+        // C'est un doublon, le marquer pour suppression
+        toDelete.push(service.id);
+      } else {
+        seenKey.add(key);
+      }
+    }
+
+    // Supprimer les doublons
+    if (toDelete.length > 0) {
+      const deleteResult = await prisma.service.deleteMany({
+        where: {
+          id: { in: toDelete },
+        },
+      });
+      deletedCount = deleteResult.count;
+    }
+
+    console.log(`[MAINTENANCE] ${deletedCount} services doublons supprimés`);
+    res.json({
+      message: `Nettoyage terminé: ${deletedCount} doublons supprimés`,
+      deleted: deletedCount,
+      total: allServices.length,
+      unique: allServices.length - deletedCount,
+    });
+  } catch (error) {
+    console.error('[MAINTENANCE] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ============ ATELIER / MOUVEMENTS ATELIERS ============
 
