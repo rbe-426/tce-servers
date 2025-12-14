@@ -1880,6 +1880,141 @@ async function processImportLignes(csvText, res) {
   });
 }
 
+// POST /api/import/vehicles - Import CSV de véhicules
+app.post('/api/import/vehicles', async (req, res) => {
+  try {
+    console.log('[IMPORT] POST /api/import/vehicles');
+
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    let csvText = req.csvContent || req.body || '';
+
+    if (!csvText) {
+      return res.status(400).json({ error: 'Aucun fichier CSV fourni' });
+    }
+
+    await processImportVehicles(csvText, res);
+  } catch (error) {
+    console.error('[IMPORT] POST /api/import/vehicles ERROR ->', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper: Traiter l'import des véhicules
+async function processImportVehicles(csvText, res) {
+  // Parse le CSV (format simple à une seule section)
+  const lines = csvText.trim().split('\n').filter(line => line.trim());
+  
+  if (lines.length < 2) {
+    throw new Error('CSV vide ou invalide');
+  }
+
+  // Extraire les headers
+  const headers = lines[0]
+    .split(',')
+    .map(h => h.trim().toLowerCase());
+
+  // Valider les colonnes requises
+  const requiredColumns = ['parc', 'type', 'modele', 'immat', 'km', 'tauxsante', 'statut'];
+  const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+
+  if (missingColumns.length > 0) {
+    throw new Error(`Colonnes manquantes: ${missingColumns.join(', ')}`);
+  }
+
+  // Mapper les indices des colonnes
+  const columnIndices = {};
+  headers.forEach((header, index) => {
+    columnIndices[header] = index;
+  });
+
+  let imported = 0;
+  const errors = [];
+
+  // Traiter chaque ligne du CSV
+  for (let i = 1; i < lines.length; i++) {
+    try {
+      const line = lines[i];
+      const values = line.split(',').map(v => v.trim());
+
+      // Extraire les données requises
+      const parc = values[columnIndices['parc']];
+      const type = values[columnIndices['type']];
+      const modele = values[columnIndices['modele']];
+      const immat = values[columnIndices['immat']];
+      const km = parseInt(values[columnIndices['km']]) || 0;
+      const tauxSante = parseInt(values[columnIndices['tauxsante']]) || 0;
+      const statut = values[columnIndices['statut']];
+
+      // Valider les données requises
+      if (!parc || !type || !modele || !immat || statut === undefined) {
+        errors.push(`Ligne ${i + 1}: données requises manquantes (parc, type, modele, immat, statut)`);
+        continue;
+      }
+
+      // Extraire les données optionnelles
+      const annee = columnIndices['annee'] !== undefined ? parseInt(values[columnIndices['annee']]) : null;
+      const boite = columnIndices['boite'] !== undefined ? values[columnIndices['boite']] : null;
+      const moteur = columnIndices['moteur'] !== undefined ? values[columnIndices['moteur']] : null;
+      const portes = columnIndices['portes'] !== undefined ? parseInt(values[columnIndices['portes']]) : null;
+      const girouette = columnIndices['girouette'] !== undefined ? values[columnIndices['girouette']]?.toLowerCase() === 'oui' : null;
+      const clim = columnIndices['clim'] !== undefined ? values[columnIndices['clim']]?.toLowerCase() === 'oui' : null;
+      const pmr = columnIndices['pmr'] !== undefined ? values[columnIndices['pmr']]?.toLowerCase() === 'oui' : null;
+      const ct = columnIndices['ct'] !== undefined ? values[columnIndices['ct']] : null;
+
+      // Créer ou mettre à jour le véhicule
+      await prisma.vehicle.upsert({
+        where: { parc },
+        create: {
+          parc,
+          type,
+          modele,
+          immat,
+          km,
+          tauxSante,
+          statut,
+          annee,
+          boite,
+          moteur,
+          portes,
+          girouette,
+          clim,
+          pmr,
+          ct: ct ? new Date(ct) : null,
+        },
+        update: {
+          type,
+          modele,
+          immat,
+          km,
+          tauxSante,
+          statut,
+          annee,
+          boite,
+          moteur,
+          portes,
+          girouette,
+          clim,
+          pmr,
+          ct: ct ? new Date(ct) : null,
+        },
+      });
+
+      imported++;
+    } catch (error) {
+      errors.push(`Ligne ${i + 1}: ${error.message}`);
+    }
+  }
+
+  res.json({
+    imported,
+    errors: errors.length > 0 ? errors : undefined,
+    message: `${imported} véhicule(s) importé(s) avec succès`,
+  });
+}
+
 // ---------- error handler (global) ----------
 app.use((err, req, res, next) => {
   console.error('[ERROR] Unhandled error:', err.message);
