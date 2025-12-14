@@ -7,6 +7,36 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Employe {
+  id              String   @id @default(cuid())
+  nom             String
+  prenom          String
+  email           String?  @unique
+  telephone       String?
+  poste           String   // "Conducteur", "Mécanicien", "Administratif", etc.
+  statut          String   @default("Actif") // "Actif", "En congé", "Inactif", "Suspendu"
+  dateEmbauche    DateTime
+  dateDepart      DateTime?
+  salaire         Float?
+  
+  // Pour les conducteurs
+  matricule       String?  @unique
+  permis          String?  // "D", "D+E", etc.
+  typeContrat     String?  // "CDI", "CDD", "Stage", etc.
+  
+  // Certifications professionnelles
+  certificationsJson String? // { "FCOS": "2025-12-31", "Secourisme": "2024-06-30", ... }
+  
+  // Notes/Observations
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([poste, statut])
+  @@index([email])
+}
+
 model Vehicle {
   parc        String   @id
   type        String

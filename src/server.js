@@ -374,9 +374,165 @@ app.delete('/api/vehicles/:parc', async (req, res) => {
   }
 });
 
+// ========== JURHE - GESTION DU PERSONNEL ==========
+
+// GET /api/employes - Liste tous les employés (avec filtrage par poste)
+app.get('/api/employes', async (req, res) => {
+  try {
+    console.log('[EMPLOYES] GET /api/employes');
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const { poste, statut } = req.query;
+    
+    const where = {};
+    if (poste) {
+      where.poste = poste;
+    }
+    if (statut) {
+      where.statut = statut;
+    }
+
+    const employes = await prisma.employe.findMany({
+      where,
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+    });
+
+    console.log(`[EMPLOYES] Retourné ${employes.length} employés`);
+    res.json(employes);
+  } catch (error) {
+    console.error('[EMPLOYES] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/employes/:id - Récupérer un employé spécifique
+app.get('/api/employes/:id', async (req, res) => {
+  try {
+    console.log(`[EMPLOYES] GET /api/employes/${req.params.id}`);
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const employe = await prisma.employe.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!employe) {
+      return res.status(404).json({ error: 'Employé non trouvé' });
+    }
+
+    res.json(employe);
+  } catch (error) {
+    console.error('[EMPLOYES] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/employes - Créer un nouvel employé
+app.post('/api/employes', async (req, res) => {
+  try {
+    console.log('[EMPLOYES] POST /api/employes');
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const { nom, prenom, email, telephone, poste, statut, dateEmbauche, permis, typeContrat, notes } = req.body;
+
+    if (!nom || !prenom || !poste) {
+      return res.status(400).json({ 
+        error: 'Les champs nom, prenom et poste sont obligatoires' 
+      });
+    }
+
+    const employe = await prisma.employe.create({
+      data: {
+        nom,
+        prenom,
+        email,
+        telephone,
+        poste,
+        statut: statut || 'Actif',
+        dateEmbauche: dateEmbauche ? new Date(dateEmbauche) : new Date(),
+        permis,
+        typeContrat,
+        notes,
+        matricule: poste === 'Conducteur' ? `${prenom.substring(0, 3).toUpperCase()}${nom.substring(0, 3).toUpperCase()}` : undefined,
+      },
+    });
+
+    console.log(`[EMPLOYES] Employé créé: ${employe.id}`);
+    res.status(201).json(employe);
+  } catch (error) {
+    console.error('[EMPLOYES] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/employes/:id - Mettre à jour un employé
+app.put('/api/employes/:id', async (req, res) => {
+  try {
+    console.log(`[EMPLOYES] PUT /api/employes/${req.params.id}`);
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const { nom, prenom, email, telephone, poste, statut, dateEmbauche, dateDepart, permis, typeContrat, notes } = req.body;
+
+    const employe = await prisma.employe.update({
+      where: { id: req.params.id },
+      data: {
+        ...(nom && { nom }),
+        ...(prenom && { prenom }),
+        ...(email !== undefined && { email }),
+        ...(telephone !== undefined && { telephone }),
+        ...(poste && { poste }),
+        ...(statut && { statut }),
+        ...(dateEmbauche && { dateEmbauche: new Date(dateEmbauche) }),
+        ...(dateDepart !== undefined && { dateDepart: dateDepart ? new Date(dateDepart) : null }),
+        ...(permis !== undefined && { permis }),
+        ...(typeContrat !== undefined && { typeContrat }),
+        ...(notes !== undefined && { notes }),
+      },
+    });
+
+    console.log(`[EMPLOYES] Employé mis à jour: ${employe.id}`);
+    res.json(employe);
+  } catch (error) {
+    console.error('[EMPLOYES] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/employes/:id - Supprimer un employé
+app.delete('/api/employes/:id', async (req, res) => {
+  try {
+    console.log(`[EMPLOYES] DELETE /api/employes/${req.params.id}`);
+    
+    if (!prismaReady) {
+      return res.status(503).json({ error: 'Database not ready' });
+    }
+
+    const employe = await prisma.employe.delete({
+      where: { id: req.params.id },
+    });
+
+    console.log(`[EMPLOYES] Employé supprimé: ${employe.id}`);
+    res.json({ ok: true, message: 'Employé supprimé' });
+  } catch (error) {
+    console.error('[EMPLOYES] Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ========== CONDUCTEURS ==========
 
-// GET /api/conducteurs/jurhe/sync - Synchroniser depuis JURHE
+// GET /api/conducteurs/jurhe/sync - Synchroniser depuis JURHE via API Employes
 app.get('/api/conducteurs/jurhe/sync', async (_req, res) => {
   try {
     console.log('[JURHE] GET /api/conducteurs/jurhe/sync - Synchronisation JURHE');
@@ -385,92 +541,61 @@ app.get('/api/conducteurs/jurhe/sync', async (_req, res) => {
       return res.status(503).json({ error: 'Database not ready' });
     }
 
-    const jurheUrl = process.env.JURHE_API_URL || 'https://www.tce-interne.fr/api/conducteurs';
-    const jurheKey = process.env.JURHE_API_KEY;
+    // Récupérer les conducteurs depuis la table Employe (poste = "Conducteur")
+    const employes = await prisma.employe.findMany({
+      where: {
+        poste: 'Conducteur',
+        statut: 'Actif', // Synchroniser seulement les actifs
+      },
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }],
+    });
 
-    if (!jurheUrl) {
-      console.warn('[JURHE] JURHE_API_URL non configurée, utilisant données locales');
-      const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
-      return res.json({
-        source: 'local',
-        conducteurs,
-        message: 'Données locales (JURHE non configurée)',
-      });
-    }
+    console.log(`[JURHE] ${employes.length} conducteurs actifs trouvés dans JURHE`);
 
-    let jurheData = [];
-    try {
-      console.log(`[JURHE] Appel API JURHE: ${jurheUrl}`);
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (jurheKey) {
-        headers['Authorization'] = `Bearer ${jurheKey}`;
-      }
-
-      const response = await fetch(jurheUrl, { headers });
-      if (!response.ok) {
-        throw new Error(`JURHE HTTP ${response.status}`);
-      }
-      jurheData = await response.json();
-      console.log(`[JURHE] Reçu ${jurheData.length || 0} conducteurs de JURHE`);
-    } catch (error) {
-      console.error('[JURHE] Erreur appel JURHE:', error.message);
-      // Fallback sur données locales
-      const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
-      return res.json({
-        source: 'fallback',
-        conducteurs,
-        error: error.message,
-        message: 'JURHE indisponible, données locales',
-      });
-    }
-
-    // Synchroniser avec la BD locale
+    // Synchroniser avec la table Conducteur (BD locale)
     let imported = 0;
     const errors = [];
 
-    for (const conductor of jurheData) {
+    for (const employe of employes) {
       try {
-        // Mapper les champs JURHE → BD locale
+        // Créer ou mettre à jour le conducteur
         await prisma.conducteur.upsert({
-          where: { matricule: conductor.matricule || conductor.id },
+          where: { matricule: employe.matricule || `${employe.prenom.substring(0, 3).toUpperCase()}${employe.nom.substring(0, 3).toUpperCase()}` },
           update: {
-            nom: conductor.nom || conductor.lastName,
-            prenom: conductor.prenom || conductor.firstName,
-            permis: conductor.permis || conductor.licenseType,
-            statut: conductor.statut || conductor.status || 'Actif',
-            typeContrat: conductor.typeContrat || conductor.contractType,
-            phone: conductor.telephone || conductor.phone,
-            email: conductor.email,
-            embauche: conductor.dateEmbauche ? new Date(conductor.dateEmbauche) : new Date(),
+            nom: employe.nom,
+            prenom: employe.prenom,
+            email: employe.email || undefined,
+            statut: employe.statut,
+            permis: employe.permis || 'D',
           },
           create: {
-            nom: conductor.nom || conductor.lastName,
-            prenom: conductor.prenom || conductor.firstName,
-            matricule: conductor.matricule || conductor.id,
-            permis: conductor.permis || conductor.licenseType || 'D',
-            statut: conductor.statut || conductor.status || 'Actif',
-            typeContrat: conductor.typeContrat || conductor.contractType || 'CDI',
-            phone: conductor.telephone || conductor.phone,
-            email: conductor.email,
-            embauche: conductor.dateEmbauche ? new Date(conductor.dateEmbauche) : new Date(),
+            nom: employe.nom,
+            prenom: employe.prenom,
+            matricule: employe.matricule || `${employe.prenom.substring(0, 3).toUpperCase()}${employe.nom.substring(0, 3).toUpperCase()}`,
+            email: employe.email,
+            permis: employe.permis || 'D',
+            statut: employe.statut || 'Actif',
+            typeContrat: employe.typeContrat || 'CDI',
+            embauche: employe.dateEmbauche || new Date(),
           },
         });
         imported++;
       } catch (error) {
-        errors.push(`${conductor.nom || conductor.id}: ${error.message}`);
+        errors.push(`${employe.nom} ${employe.prenom}: ${error.message}`);
       }
     }
 
     // Retourner les données mises à jour depuis la BD
-    const conducteurs = await prisma.conducteur.findMany({ orderBy: { nom: 'asc' } });
+    const conducteurs = await prisma.conducteur.findMany({ 
+      orderBy: [{ nom: 'asc' }, { prenom: 'asc' }] 
+    });
 
-    console.log(`[JURHE] Synchronisation terminée: ${imported} importés, ${errors.length} erreurs`);
+    console.log(`[JURHE] Synchronisation terminée: ${imported}/${employes.length} importés, ${errors.length} erreurs`);
     res.json({
-      source: 'jurhe',
+      source: 'jurhe-employes',
       conducteurs,
       imported,
+      total: employes.length,
       errors: errors.length > 0 ? errors : undefined,
       message: `${imported} conducteurs synchronisés depuis JURHE`,
     });
