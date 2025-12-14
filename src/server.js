@@ -803,6 +803,63 @@ app.delete('/api/services/cleanup', async (_req, res) => {
   }
 });
 
+// DEBUG - Vérifier la structure complète
+app.get('/api/debug/lignes-structure', async (_req, res) => {
+  try {
+    const lignes = await prisma.ligne.findMany({ 
+      orderBy: { numero: 'asc' },
+      include: { 
+        sens: { 
+          orderBy: { ordre: 'asc' },
+          include: {
+            services: { 
+              orderBy: { heureDebut: 'asc' }
+            }
+          }
+        } 
+      }
+    });
+
+    const stats = {
+      totalLignes: lignes.length,
+      lignesAvecSens: lignes.filter(l => l.sens && l.sens.length > 0).length,
+      totalSens: 0,
+      totalServices: 0,
+      details: []
+    };
+
+    for (const ligne of lignes) {
+      const sensList = ligne.sens || [];
+      stats.totalSens += sensList.length;
+      let servicesCount = 0;
+      
+      for (const sens of sensList) {
+        const servicesList = sens.services || [];
+        servicesCount += servicesList.length;
+        stats.totalServices += servicesList.length;
+      }
+
+      stats.details.push({
+        id: ligne.id,
+        numero: ligne.numero,
+        nom: ligne.nom,
+        sensCount: sensList.length,
+        servicesCount,
+        sens: sensList.map(s => ({
+          id: s.id,
+          nom: s.nom,
+          serviceCount: (s.services || []).length
+        }))
+      });
+    }
+
+    res.json(stats);
+  } catch (e) {
+    console.error('GET /api/debug/lignes-structure ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // DETAIL
 app.get('/api/lignes/:id', async (req, res) => {
   try {
