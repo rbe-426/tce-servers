@@ -20,6 +20,7 @@ const LIGNES_DATA = [
     jours: 'L; M; M; J; V',
     heureDebut: '04h37',
     heureFin: '00h10',
+    contraintes: ['Jours ouvrables'],  // Contraintes d'exploitation
     sens: [
       {
         nom: 'Aller',
@@ -46,6 +47,7 @@ const LIGNES_DATA = [
     jours: 'L; M; M; J; V',
     heureDebut: '05h15',
     heureFin: '01h30',
+    contraintes: ['Jours ouvrables'],
     sens: [
       {
         nom: 'Aller',
@@ -72,6 +74,7 @@ const LIGNES_DATA = [
     jours: 'S; D',
     heureDebut: '08h00',
     heureFin: '22h00',
+    contraintes: ['Week-end et jours fériés'],
     sens: [
       {
         nom: 'Aller',
@@ -89,6 +92,7 @@ const LIGNES_DATA = [
     jours: 'L; M; M; J; V',
     heureDebut: '06h00',
     heureFin: '23h00',
+    contraintes: ['Aéroport', 'Priorité conducteurs'],
     sens: [
       {
         nom: 'Aller',
@@ -115,6 +119,7 @@ const LIGNES_DATA = [
     jours: 'L; M; M; J; V; S',
     heureDebut: '04h30',
     heureFin: '00h45',
+    contraintes: ['Samedi compris'],
     sens: [
       {
         nom: 'Aller',
@@ -242,9 +247,11 @@ async function importLignes() {
             heureDebut: parseHeure(ligneData.heureDebut),
             heureFin: parseHeure(ligneData.heureFin),
             calendrierJson: JSON.stringify(parseJours(ligneData.jours)),
+            contraintes: JSON.stringify(ligneData.contraintes || []),  // Ajouter les contraintes
             statut: 'Actif'
           },
           update: {
+            contraintes: JSON.stringify(ligneData.contraintes || []),  // Mettre à jour les contraintes
             statut: 'Actif'
           }
         });
@@ -290,6 +297,8 @@ async function importLignes() {
 
             // Créer un service par date
             for (const serviceDate of serviceDates) {
+              // Vérifier si ce service exacte existe déjà
+              // (même ligne, même sens, même date, mêmes heures)
               const existingService = await prisma.service.findFirst({
                 where: {
                   ligneId: ligne.id,
