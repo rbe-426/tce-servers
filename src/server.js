@@ -1142,6 +1142,29 @@ app.put('/api/services/:id', async (req, res) => {
   }
 });
 
+// Marquer un service comme non-assuré
+app.put('/api/services/:id/non-assured', async (req, res) => {
+  try {
+    const { motifNonAssurance, notes, markedBy } = req.body;
+    
+    const service = await prisma.service.update({
+      where: { id: req.params.id },
+      data: {
+        statut: 'Non-Assuré',
+        motifNonAssurance: motifNonAssurance,
+        motifsDetails: notes || '',
+      },
+      include: { ligne: true, conducteur: true },
+    });
+    
+    console.log(`[SERVICE] Marqué non-assuré: ${service.id} (${motifNonAssurance}) par ${markedBy}`);
+    res.json(service);
+  } catch (e) {
+    console.error('PUT /api/services/:id/non-assured ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // DELETE
 app.delete('/api/services/:id', async (req, res) => {
   try {
