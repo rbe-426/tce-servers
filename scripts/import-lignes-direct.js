@@ -340,6 +340,59 @@ const LIGNES_DATA = [
         ]
       }
     ]
+  },
+
+  {
+    "numero": "N139",
+    "nom": "NOCTILIEN_N139",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "00h10",
+    "heureFin": "07h16",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "direction": "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "01h35", "heureFin": "07h16" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "direction": "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "00h10", "heureFin": "05h56" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "direction": "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "01h35", "heureFin": "07h16" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "direction": "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "00h10", "heureFin": "05h56" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "01h35", "heureFin": "07h16" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
+        "services": [
+          { "heureDebut": "00h10", "heureFin": "05h56" }
+        ]
+      }
+    ]
   }
 ];
 
