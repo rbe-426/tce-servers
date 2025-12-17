@@ -5,10 +5,12 @@
  * Utilise Prisma pour injecter directement
  * Évite les doublons et les erreurs de parsing CSV
  *
- * LOGIQUE (comme ton CSV mais dans le script) :
- * - 1 seule entrée par numéro de ligne
- * - Les variantes SEMAINE / SAMEDI / DIMFER sont dans les SENS (nom)
- * - Chaque sens a ses propres services (plages conducteur)
+ * ✅ Version avec jourFonctionnement cohérent :
+ * - 1 numéro = 1 ligne
+ * - 6 sens max : SEMAINE A/R, SAMEDI A/R, DIMANCHE_FERIES A/R
+ * - chaque sens a son propre jourFonctionnement
+ * - services découpés en blocs <= 10h (départ -> arrivée)
+ * - Filtrage par jourFonctionnement au moment de l'affichage (Plannings.jsx)
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -16,333 +18,325 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // ==================== DONNÉES À IMPORTER ====================
-// ⚠️ Remplace/ajuste si tu veux des découpes de services différentes (max 10h).
+// ⚠️ Données réelles calculées depuis les PDF fournis
 const LIGNES_DATA = [
-  // ===================== 4201 =====================
   {
-    numero: "4201",
-    nom: "LIGNE_4201",
-    type: "autobus",
-    // amplitude globale (large) pour la ligne
-    jours: "L; M; M; J; V; S; D",
-    heureDebut: "04h30",
-    heureFin: "00h30",
-    sens: [
-      // SEMAINE
+    "numero": "4202",
+    "nom": "LIGNE_4202",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "04h21",
+    "heureFin": "00h19",
+    "sens": [
       {
-        nom: "SEMAINE - Aller",
-        direction: "Gare SNCF → Centre Ville",
-        services: [
-          { heureDebut: "04h37", heureFin: "12h30" },
-          { heureDebut: "12h30", heureFin: "20h30" },
-          { heureDebut: "20h30", heureFin: "00h10" }
+        "nom": "Semaine Aller",
+        "direction": "RIS-ORANGISGare de Ris-Orangis Val de Ris → EVRY-COURCOURONNESAunettes",
+        "services": [
+          { "heureDebut": "04h48", "heureFin": "14h48" },
+          { "heureDebut": "14h48", "heureFin": "00h19" }
         ]
       },
       {
-        nom: "SEMAINE - Retour",
-        direction: "Centre Ville → Gare SNCF",
-        services: [
-          { heureDebut: "04h50", heureFin: "12h45" },
-          { heureDebut: "12h45", heureFin: "20h45" },
-          { heureDebut: "20h45", heureFin: "00h10" }
-        ]
-      },
-
-      // SAMEDI
-      {
-        nom: "SAMEDI - Aller",
-        direction: "Gare SNCF → Centre Ville",
-        services: [
-          { heureDebut: "06h00", heureFin: "14h00" },
-          { heureDebut: "14h00", heureFin: "22h00" },
-          { heureDebut: "22h00", heureFin: "00h10" }
+        "nom": "Semaine Retour",
+        "direction": "EVRY-COURCOURONNESAunettes → RIS-ORANGISGare de Ris-Orangis Val de Ris",
+        "services": [
+          { "heureDebut": "04h21", "heureFin": "14h21" },
+          { "heureDebut": "14h21", "heureFin": "00h18" }
         ]
       },
       {
-        nom: "SAMEDI - Retour",
-        direction: "Centre Ville → Gare SNCF",
-        services: [
-          { heureDebut: "06h10", heureFin: "14h10" },
-          { heureDebut: "14h10", heureFin: "22h10" },
-          { heureDebut: "22h10", heureFin: "00h10" }
-        ]
-      },
-
-      // DIMFER
-      {
-        nom: "DIMFER - Aller",
-        direction: "Gare SNCF → Centre Ville",
-        services: [
-          { heureDebut: "07h30", heureFin: "15h30" },
-          { heureDebut: "15h30", heureFin: "23h30" }
+        "nom": "Samedi Aller",
+        "direction": "RIS-ORANGISGare de Ris-Orangis Val de Ris → EVRY-COURCOURONNESAunettes",
+        "services": [
+          { "heureDebut": "05h09", "heureFin": "15h09" },
+          { "heureDebut": "15h09", "heureFin": "23h54" }
         ]
       },
       {
-        nom: "DIMFER - Retour",
-        direction: "Centre Ville → Gare SNCF",
-        services: [
-          { heureDebut: "07h45", heureFin: "15h45" },
-          { heureDebut: "15h45", heureFin: "23h45" }
+        "nom": "Samedi Retour",
+        "direction": "EVRY-COURCOURONNESAunettes → RIS-ORANGISGare de Ris-Orangis Val de Ris",
+        "services": [
+          { "heureDebut": "05h17", "heureFin": "15h17" },
+          { "heureDebut": "15h17", "heureFin": "00h03" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "RIS-ORANGISGare de Ris-Orangis Val de Ris → EVRY-COURCOURONNESAunettes",
+        "services": [
+          { "heureDebut": "05h32", "heureFin": "15h32" },
+          { "heureDebut": "15h32", "heureFin": "00h11" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "EVRY-COURCOURONNESAunettes → RIS-ORANGISGare de Ris-Orangis Val de Ris",
+        "services": [
+          { "heureDebut": "05h21", "heureFin": "15h21" },
+          { "heureDebut": "15h21", "heureFin": "23h43" }
         ]
       }
     ]
   },
 
-  // ===================== 4202 =====================
   {
-    numero: "4202",
-    nom: "LIGNE_4202",
-    type: "autobus",
-    jours: "L; M; M; J; V; S; D",
-    heureDebut: "04h45",
-    heureFin: "00h10",
-    sens: [
-      // SEMAINE
+    "numero": "4203",
+    "nom": "LIGNE_4203",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "04h57",
+    "heureFin": "00h53",
+    "sens": [
       {
-        nom: "SEMAINE - Aller",
-        direction: "Évry-Courcouronnes → Ris-Orangis (Aunettes / Val de Ris)",
-        services: [
-          { heureDebut: "04h48", heureFin: "12h40" },
-          { heureDebut: "12h40", heureFin: "20h40" },
-          { heureDebut: "20h40", heureFin: "00h10" }
+        "nom": "Semaine Aller",
+        "direction": "LE-COUDRAY-MONTCEAUXTerminal David Douillet → CORBEIL-ESSONNESSnecma / Safran",
+        "services": [
+          { "heureDebut": "04h57", "heureFin": "14h57" },
+          { "heureDebut": "14h57", "heureFin": "00h42" }
         ]
       },
       {
-        nom: "SEMAINE - Retour",
-        direction: "Ris-Orangis (Val de Ris) → Évry-Courcouronnes",
-        services: [
-          { heureDebut: "05h10", heureFin: "13h00" },
-          { heureDebut: "13h00", heureFin: "21h00" },
-          { heureDebut: "21h00", heureFin: "00h10" }
-        ]
-      },
-
-      // SAMEDI
-      {
-        nom: "SAMEDI - Aller",
-        direction: "Évry-Courcouronnes → Ris-Orangis (Aunettes / Val de Ris)",
-        services: [
-          { heureDebut: "06h00", heureFin: "14h00" },
-          { heureDebut: "14h00", heureFin: "22h00" },
-          { heureDebut: "22h00", heureFin: "00h19" }
+        "nom": "Semaine Retour",
+        "direction": "CORBEIL-ESSONNESSnecma / Safran → LE-COUDRAY-MONTCEAUXTerminal David Douillet",
+        "services": [
+          { "heureDebut": "05h19", "heureFin": "15h19" },
+          { "heureDebut": "15h19", "heureFin": "00h53" }
         ]
       },
       {
-        nom: "SAMEDI - Retour",
-        direction: "Ris-Orangis (Val de Ris) → Évry-Courcouronnes",
-        services: [
-          { heureDebut: "05h17", heureFin: "13h17" },
-          { heureDebut: "13h17", heureFin: "21h17" },
-          { heureDebut: "21h17", heureFin: "00h19" }
-        ]
-      },
-
-      // DIMFER
-      {
-        nom: "DIMFER - Aller",
-        direction: "Évry-Courcouronnes → Ris-Orangis (Aunettes / Val de Ris)",
-        services: [
-          { heureDebut: "06h30", heureFin: "14h30" },
-          { heureDebut: "14h30", heureFin: "00h08" }
+        "nom": "Samedi Aller",
+        "direction": "LE-COUDRAY-MONTCEAUXTerminal David Douillet → CORBEIL-ESSONNESSnecma / Safran",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "00h09" }
         ]
       },
       {
-        nom: "DIMFER - Retour",
-        direction: "Ris-Orangis (Val de Ris) → Évry-Courcouronnes",
-        services: [
-          { heureDebut: "06h45", heureFin: "14h45" },
-          { heureDebut: "14h45", heureFin: "23h55" }
+        "nom": "Samedi Retour",
+        "direction": "CORBEIL-ESSONNESSnecma / Safran → LE-COUDRAY-MONTCEAUXTerminal David Douillet",
+        "services": [
+          { "heureDebut": "05h17", "heureFin": "15h17" },
+          { "heureDebut": "15h17", "heureFin": "00h24" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "LE-COUDRAY-MONTCEAUXTerminal David Douillet → CORBEIL-ESSONNESSnecma / Safran",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "00h41" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "CORBEIL-ESSONNESSnecma / Safran → LE-COUDRAY-MONTCEAUXTerminal David Douillet",
+        "services": [
+          { "heureDebut": "05h20", "heureFin": "15h20" },
+          { "heureDebut": "15h20", "heureFin": "00h31" }
         ]
       }
     ]
   },
 
-  // ===================== 4203 =====================
   {
-    numero: "4203",
-    nom: "LIGNE_4203",
-    type: "autobus",
-    jours: "L; M; M; J; V; S; D",
-    heureDebut: "05h30",
-    heureFin: "23h30",
-    sens: [
+    "numero": "4205",
+    "nom": "LIGNE_4205",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h00",
+    "heureFin": "00h48",
+    "sens": [
       {
-        nom: "SEMAINE - Aller",
-        direction: "Corbeil-Essonnes → (terminus selon fiche)",
-        services: [
-          { heureDebut: "05h30", heureFin: "13h30" },
-          { heureDebut: "13h30", heureFin: "21h30" }
+        "nom": "Semaine Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → JUVISY-SUR-ORGEGare de Juvisy - Condorcet",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "00h23" }
         ]
       },
       {
-        nom: "SEMAINE - Retour",
-        direction: "(terminus) → Corbeil-Essonnes",
-        services: [
-          { heureDebut: "06h00", heureFin: "14h00" },
-          { heureDebut: "14h00", heureFin: "22h00" }
-        ]
-      },
-
-      {
-        nom: "SAMEDI - Aller",
-        direction: "Corbeil-Essonnes → (terminus selon fiche)",
-        services: [
-          { heureDebut: "07h00", heureFin: "15h00" },
-          { heureDebut: "15h00", heureFin: "23h00" }
+        "nom": "Semaine Retour",
+        "direction": "JUVISY-SUR-ORGEGare de Juvisy - Condorcet → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "00h28" }
         ]
       },
       {
-        nom: "SAMEDI - Retour",
-        direction: "(terminus) → Corbeil-Essonnes",
-        services: [
-          { heureDebut: "07h15", heureFin: "15h15" },
-          { heureDebut: "15h15", heureFin: "23h15" }
-        ]
-      },
-
-      {
-        nom: "DIMFER - Aller",
-        direction: "Corbeil-Essonnes → (terminus selon fiche)",
-        services: [
-          { heureDebut: "08h00", heureFin: "16h00" },
-          { heureDebut: "16h00", heureFin: "22h30" }
+        "nom": "Samedi Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → JUVISY-SUR-ORGEGare de Juvisy - Condorcet",
+        "services": [
+          { "heureDebut": "05h02", "heureFin": "15h02" },
+          { "heureDebut": "15h02", "heureFin": "23h50" }
         ]
       },
       {
-        nom: "DIMFER - Retour",
-        direction: "(terminus) → Corbeil-Essonnes",
-        services: [
-          { heureDebut: "08h15", heureFin: "16h15" },
-          { heureDebut: "16h15", heureFin: "22h45" }
+        "nom": "Samedi Retour",
+        "direction": "JUVISY-SUR-ORGEGare de Juvisy - Condorcet → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "05h54", "heureFin": "15h54" },
+          { "heureDebut": "15h54", "heureFin": "00h48" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → JUVISY-SUR-ORGEGare de Juvisy - Condorcet",
+        "services": [
+          { "heureDebut": "05h30", "heureFin": "15h30" },
+          { "heureDebut": "15h30", "heureFin": "22h50" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "JUVISY-SUR-ORGEGare de Juvisy - Condorcet → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "05h39", "heureFin": "15h39" },
+          { "heureDebut": "15h39", "heureFin": "23h01" }
         ]
       }
     ]
   },
 
-  // ===================== 4204 (PDF 13 pages : Soisy-sur-Seine <-> Gare d'Orangis Bois de l'Épine) =====================
   {
-    numero: "4204",
-    nom: "LIGNE_4204",
-    type: "autobus",
-    jours: "L; M; M; J; V; S; D",
-    heureDebut: "05h20",
-    heureFin: "23h00",
-    sens: [
-      // SEMAINE
+    "numero": "4206",
+    "nom": "LIGNE_4206",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "04h33",
+    "heureFin": "00h36",
+    "sens": [
       {
-        nom: "SEMAINE - Aller",
-        direction: "Gare d'Orangis Bois de l'Épine → Les Meillottes (Soisy-sur-Seine)",
-        services: [
-          { heureDebut: "05h22", heureFin: "13h22" },
-          { heureDebut: "13h22", heureFin: "21h22" },
-          { heureDebut: "21h22", heureFin: "22h16" }
+        "nom": "Semaine Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "04h38", "heureFin": "14h38" },
+          { "heureDebut": "14h38", "heureFin": "00h32" }
         ]
       },
       {
-        nom: "SEMAINE - Retour",
-        direction: "Les Meillottes (Soisy-sur-Seine) → Gare d'Orangis Bois de l'Épine",
-        services: [
-          { heureDebut: "05h33", heureFin: "13h33" },
-          { heureDebut: "13h33", heureFin: "21h33" },
-          { heureDebut: "21h33", heureFin: "22h45" }
-        ]
-      },
-
-      // SAMEDI
-      {
-        nom: "SAMEDI - Aller",
-        direction: "Gare d'Orangis Bois de l'Épine → Les Meillottes (Soisy-sur-Seine)",
-        services: [
-          { heureDebut: "06h38", heureFin: "14h38" },
-          { heureDebut: "14h38", heureFin: "22h53" }
+        "nom": "Semaine Retour",
+        "direction": "CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "04h33", "heureFin": "14h33" },
+          { "heureDebut": "14h33", "heureFin": "00h36" }
         ]
       },
       {
-        nom: "SAMEDI - Retour",
-        direction: "Les Meillottes (Soisy-sur-Seine) → Gare d'Orangis Bois de l'Épine",
-        services: [
-          { heureDebut: "07h23", heureFin: "15h23" },
-          { heureDebut: "15h23", heureFin: "22h32" }
-        ]
-      },
-
-      // DIMFER
-      {
-        nom: "DIMFER - Aller",
-        direction: "Gare d'Orangis Bois de l'Épine → Les Meillottes (Soisy-sur-Seine)",
-        services: [
-          { heureDebut: "06h55", heureFin: "14h55" },
-          { heureDebut: "14h55", heureFin: "21h14" }
+        "nom": "Samedi Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "04h38", "heureFin": "14h38" },
+          { "heureDebut": "14h38", "heureFin": "00h34" }
         ]
       },
       {
-        nom: "DIMFER - Retour",
-        direction: "Les Meillottes (Soisy-sur-Seine) → Gare d'Orangis Bois de l'Épine",
-        services: [
-          { heureDebut: "07h09", heureFin: "15h09" },
-          { heureDebut: "15h09", heureFin: "20h27" }
+        "nom": "Samedi Retour",
+        "direction": "CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "04h33", "heureFin": "14h33" },
+          { "heureDebut": "14h33", "heureFin": "00h30" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "VIRY-CHÂTILLONLa Treille → CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "04h33", "heureFin": "14h33" },
+          { "heureDebut": "14h33", "heureFin": "00h25" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "CORBEIL-ESSONNESGare de Corbeil-Essonnes - E. Zola → VIRY-CHÂTILLONLa Treille",
+        "services": [
+          { "heureDebut": "04h33", "heureFin": "14h33" },
+          { "heureDebut": "14h33", "heureFin": "00h25" }
         ]
       }
     ]
   },
 
-  // ===================== 4205 =====================
   {
-    numero: "4205",
-    nom: "LIGNE_4205",
-    type: "autobus",
-    jours: "L; M; M; J; V; S; D",
-    heureDebut: "05h30",
-    heureFin: "21h30",
-    sens: [
+    "numero": "4212",
+    "nom": "LIGNE_4212",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h00",
+    "heureFin": "23h41",
+    "sens": [
       {
-        nom: "SEMAINE - Aller",
-        direction: "Gare de Juvisy - Condorcet → Viry/Grigny",
-        services: [
-          { heureDebut: "05h30", heureFin: "13h30" },
-          { heureDebut: "13h30", heureFin: "21h15" }
+        "nom": "Semaine Aller",
+        "direction": "EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle → BRETIGNY-SUR-ORGEGare de Brétigny",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "23h25" }
         ]
       },
       {
-        nom: "SEMAINE - Retour",
-        direction: "Viry/Grigny → Gare de Juvisy - Condorcet",
-        services: [
-          { heureDebut: "05h45", heureFin: "13h45" },
-          { heureDebut: "13h45", heureFin: "21h30" }
+        "nom": "Semaine Retour",
+        "direction": "BRETIGNY-SUR-ORGEGare de Brétigny → EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle",
+        "services": [
+          { "heureDebut": "05h00", "heureFin": "15h00" },
+          { "heureDebut": "15h00", "heureFin": "23h27" }
         ]
       },
+      {
+        "nom": "Samedi Aller",
+        "direction": "EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle → BRETIGNY-SUR-ORGEGare de Brétigny",
+        "services": [
+          { "heureDebut": "06h00", "heureFin": "16h00" },
+          { "heureDebut": "16h00", "heureFin": "23h27" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "direction": "BRETIGNY-SUR-ORGEGare de Brétigny → EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle",
+        "services": [
+          { "heureDebut": "06h15", "heureFin": "16h15" },
+          { "heureDebut": "16h15", "heureFin": "23h41" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "direction": "EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle → BRETIGNY-SUR-ORGEGare de Brétigny",
+        "services": [
+          { "heureDebut": "05h45", "heureFin": "15h45" },
+          { "heureDebut": "15h45", "heureFin": "22h52" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "direction": "BRETIGNY-SUR-ORGEGare de Brétigny → EVRY-COURCOURONNESGare du Bras de Fer-Évry Génopôle",
+        "services": [
+          { "heureDebut": "06h15", "heureFin": "16h15" },
+          { "heureDebut": "16h15", "heureFin": "23h20" }
+        ]
+      }
+    ]
+  },
 
+  {
+    "numero": "4213",
+    "nom": "LIGNE_4213",
+    "type": "autobus",
+    "jours": "L; M; M; J; V",
+    "heureDebut": "06h27",
+    "heureFin": "20h03",
+    "sens": [
       {
-        nom: "SAMEDI - Aller",
-        direction: "Gare de Juvisy - Condorcet → Viry/Grigny",
-        services: [
-          { heureDebut: "06h30", heureFin: "14h30" },
-          { heureDebut: "14h30", heureFin: "19h05" }
+        "nom": "Semaine Aller",
+        "direction": "RIS-ORANGISCentre Commercial Aunettes → BONDOUFLEImprimerie Nationale",
+        "services": [
+          { "heureDebut": "06h39", "heureFin": "16h39" },
+          { "heureDebut": "16h39", "heureFin": "20h03" }
         ]
       },
       {
-        nom: "SAMEDI - Retour",
-        direction: "Viry/Grigny → Gare de Juvisy - Condorcet",
-        services: [
-          { heureDebut: "06h45", heureFin: "14h45" },
-          { heureDebut: "14h45", heureFin: "19h10" }
-        ]
-      },
-
-      {
-        nom: "DIMFER - Aller",
-        direction: "Gare de Juvisy - Condorcet → Viry/Grigny",
-        services: [
-          { heureDebut: "08h58", heureFin: "16h58" },
-          { heureDebut: "16h58", heureFin: "19h30" }
-        ]
-      },
-      {
-        nom: "DIMFER - Retour",
-        direction: "Viry/Grigny → Gare de Juvisy - Condorcet",
-        services: [
-          { heureDebut: "08h39", heureFin: "16h39" },
-          { heureDebut: "16h39", heureFin: "19h00" }
+        "nom": "Semaine Retour",
+        "direction": "BONDOUFLEImprimerie Nationale → RIS-ORANGISCentre Commercial Aunettes",
+        "services": [
+          { "heureDebut": "06h27", "heureFin": "16h27" },
+          { "heureDebut": "16h27", "heureFin": "19h34" }
         ]
       }
     ]
@@ -352,126 +346,70 @@ const LIGNES_DATA = [
 // ==================== HELPER FUNCTIONS ====================
 
 /**
- * Extrait le jour de fonctionnement du nom du sens
- */
-function extractJourFonctionnement(nomSens) {
-  const nom = nomSens.toUpperCase();
-  if (nom.includes("SEMAINE")) return "SEMAINE";
-  if (nom.includes("SAMEDI")) return "SAMEDI";
-  if (nom.includes("DIMFER") || nom.includes("DIMANCHE") || nom.includes("FÉRIÉS")) return "DIMANCHE_FERIES";
-  return "SEMAINE"; // Défaut
-}
-
-/**
  * Parse une chaîne d'heure (ex: "06h30") en string au format "HH:mm"
  */
 function parseHeure(heureStr) {
   if (!heureStr) return null;
   const match = heureStr.match(/(\d{1,2})h(\d{2})?/);
   if (!match) return null;
-  const heures = String(parseInt(match[1], 10)).padStart(2, "0");
-  const minutes = String(parseInt(match[2], 10) || 0).padStart(2, "0");
+  const heures = String(parseInt(match[1])).padStart(2, '0');
+  const minutes = String(parseInt(match[2]) || 0).padStart(2, '0');
   return `${heures}:${minutes}`;
 }
 
 /**
- * Parse les jours de fonctionnement (ex: "L; M; M; J; V") en objet booléen
+ * Détermine le jourFonctionnement basé sur le nom du sens
+ * @param nomSens ex: "Semaine Aller", "Samedi Retour", "Dimanche & fériés Aller"
+ * @returns "SEMAINE" | "SAMEDI" | "DIMANCHE_FERIES"
  */
-function parseJours(joursStr) {
-  const jours = {
-    lundi: false,
-    mardi: false,
-    mercredi: false,
-    jeudi: false,
-    vendredi: false,
-    samedi: false,
-    dimanche: false
-  };
-
-  if (!joursStr) return jours;
-
-  const joursArray = joursStr.split(";").map((j) => j.trim().toUpperCase());
-
-  // Gestion spéciale pour les deux/trois M (mardi/mercredi)
-  let mCount = 0;
-  for (const jour of joursArray) {
-    if (jour === "L") jours.lundi = true;
-    else if (jour === "M") {
-      mCount++;
-      if (mCount === 1) jours.mardi = true;
-      else if (mCount === 2) jours.mercredi = true;
-    } else if (jour === "J") jours.jeudi = true;
-    else if (jour === "V") jours.vendredi = true;
-    else if (jour === "S") jours.samedi = true;
-    else if (jour === "D") jours.dimanche = true;
+function determineJourFonctionnement(nomSens) {
+  const nom = nomSens.toLowerCase();
+  
+  if (nom.includes('dimanche') || nom.includes('fériés') || nom.includes('feries')) {
+    return 'DIMANCHE_FERIES';
+  } else if (nom.includes('samedi')) {
+    return 'SAMEDI';
+  } else if (nom.includes('semaine')) {
+    return 'SEMAINE';
   }
-
-  return jours;
+  
+  // Par défaut SEMAINE si pas de correspondance claire
+  return 'SEMAINE';
 }
 
 /**
- * Génère les dates de services pour une semaine selon le jour de fonctionnement
- * @param jourFonctionnement "SEMAINE", "SAMEDI", "DIMANCHE_FERIES"
+ * Génère les dates de services en fonction du jourFonctionnement
+ * @param jourFonctionnement "SEMAINE" | "SAMEDI" | "DIMANCHE_FERIES"
  * @returns array de dates (Date objects)
  */
-function generateServiceDatesByJour(jourFonctionnement) {
+function generateServiceDates(jourFonctionnement) {
   const dates = [];
   const today = new Date();
 
   // Trouver le lundi de cette semaine
-  const dayOfWeek = today.getDay(); // 0=dimanche
+  const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(today);
   monday.setDate(today.getDate() - daysToMonday);
   monday.setHours(0, 0, 0, 0);
 
-  if (jourFonctionnement === "SEMAINE") {
-    // Lundi à vendredi
+  if (jourFonctionnement === 'SEMAINE') {
+    // Lundi à vendredi (indices 0-4)
     for (let i = 0; i < 5; i++) {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
       dates.push(date);
     }
-  } else if (jourFonctionnement === "SAMEDI") {
-    // Samedi
+  } else if (jourFonctionnement === 'SAMEDI') {
+    // Samedi uniquement (indice 5)
     const date = new Date(monday);
-    date.setDate(monday.getDate() + 5); // Samedi
+    date.setDate(monday.getDate() + 5);
     dates.push(date);
-  } else if (jourFonctionnement === "DIMANCHE_FERIES") {
-    // Dimanche
+  } else if (jourFonctionnement === 'DIMANCHE_FERIES') {
+    // Dimanche uniquement (indice 6)
     const date = new Date(monday);
-    date.setDate(monday.getDate() + 6); // Dimanche
+    date.setDate(monday.getDate() + 6);
     dates.push(date);
-  }
-
-  return dates;
-}
-
-/**
- * Génère les dates de services pour une semaine
- * @param calendrier objet {lundi, mardi, ...}
- * @returns array de dates (Date objects)
- */
-function generateServiceDates(calendrier) {
-  const dates = [];
-  const today = new Date();
-
-  // Trouver le lundi de cette semaine
-  const dayOfWeek = today.getDay(); // 0=dimanche
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday);
-  monday.setHours(0, 0, 0, 0);
-
-  const calendarOrder = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-
-  for (let i = 0; i < 7; i++) {
-    const dayName = calendarOrder[i];
-    if (calendrier[dayName]) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      dates.push(date);
-    }
   }
 
   return dates;
@@ -500,7 +438,7 @@ async function importLignes() {
             typesVehicules: JSON.stringify([ligneData.type]),
             heureDebut: parseHeure(ligneData.heureDebut),
             heureFin: parseHeure(ligneData.heureFin),
-            calendrierJson: JSON.stringify(parseJours(ligneData.jours)),
+            calendrierJson: JSON.stringify(ligneData.jours),
             statut: "Actif"
           },
           update: {
@@ -508,7 +446,7 @@ async function importLignes() {
             typesVehicules: JSON.stringify([ligneData.type]),
             heureDebut: parseHeure(ligneData.heureDebut),
             heureFin: parseHeure(ligneData.heureFin),
-            calendrierJson: JSON.stringify(parseJours(ligneData.jours)),
+            calendrierJson: JSON.stringify(ligneData.jours),
             statut: "Actif"
           }
         });
@@ -518,7 +456,8 @@ async function importLignes() {
 
         // 2. Traiter les sens
         for (const sensData of ligneData.sens) {
-          const jourFonctionnement = extractJourFonctionnement(sensData.nom);
+          const jourFonctionnement = determineJourFonctionnement(sensData.nom);
+          
           const sens = await prisma.sens.upsert({
             where: {
               ligneId_nom: {
@@ -540,12 +479,12 @@ async function importLignes() {
             }
           });
 
-          console.log(`   ✓ Sens créé/mis à jour: ${sens.nom} (${jourFonctionnement})`);
+          console.log(`   ✓ Sens OK: ${sens.nom} (${jourFonctionnement})`);
+
+          // ✅ IMPORTANT : Générer les dates en fonction du jourFonctionnement du sens
+          const serviceDates = generateServiceDates(jourFonctionnement);
 
           // 3. Créer les services pour ce sens
-          // Générer les dates selon le jour de fonctionnement du sens
-          const serviceDates = generateServiceDatesByJour(jourFonctionnement);
-
           for (const serviceData of sensData.services) {
             const heureDebut = parseHeure(serviceData.heureDebut);
             const heureFin = parseHeure(serviceData.heureFin);
@@ -555,7 +494,6 @@ async function importLignes() {
               continue;
             }
 
-            // Créer un service par date
             for (const serviceDate of serviceDates) {
               const existingService = await prisma.service.findFirst({
                 where: {
@@ -588,6 +526,7 @@ async function importLignes() {
         }
 
         console.log(`   ✅ Ligne ${ligneData.numero} importée avec succès\n`);
+
       } catch (error) {
         const msg = `Erreur ligne ${ligneData.numero}: ${error.message}`;
         console.error(`   ❌ ${msg}`);
@@ -609,6 +548,7 @@ async function importLignes() {
     }
 
     console.log("\n✅ Les données sont maintenant disponibles sur le planning !");
+
   } catch (error) {
     console.error("\n💥 Erreur fatale:", error);
     process.exit(1);
