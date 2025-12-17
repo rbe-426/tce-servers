@@ -352,6 +352,17 @@ const LIGNES_DATA = [
 // ==================== HELPER FUNCTIONS ====================
 
 /**
+ * Extrait le jour de fonctionnement du nom du sens
+ */
+function extractJourFonctionnement(nomSens) {
+  const nom = nomSens.toUpperCase();
+  if (nom.includes("SEMAINE")) return "SEMAINE";
+  if (nom.includes("SAMEDI")) return "SAMEDI";
+  if (nom.includes("DIMFER") || nom.includes("DIMANCHE") || nom.includes("FÉRIÉS")) return "DIMANCHE_FERIES";
+  return "SEMAINE"; // Défaut
+}
+
+/**
  * Parse une chaîne d'heure (ex: "06h30") en string au format "HH:mm"
  */
 function parseHeure(heureStr) {
@@ -396,6 +407,44 @@ function parseJours(joursStr) {
   }
 
   return jours;
+}
+
+/**
+ * Génère les dates de services pour une semaine selon le jour de fonctionnement
+ * @param jourFonctionnement "SEMAINE", "SAMEDI", "DIMANCHE_FERIES"
+ * @returns array de dates (Date objects)
+ */
+function generateServiceDatesByJour(jourFonctionnement) {
+  const dates = [];
+  const today = new Date();
+
+  // Trouver le lundi de cette semaine
+  const dayOfWeek = today.getDay(); // 0=dimanche
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  if (jourFonctionnement === "SEMAINE") {
+    // Lundi à vendredi
+    for (let i = 0; i < 5; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      dates.push(date);
+    }
+  } else if (jourFonctionnement === "SAMEDI") {
+    // Samedi
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + 5); // Samedi
+    dates.push(date);
+  } else if (jourFonctionnement === "DIMANCHE_FERIES") {
+    // Dimanche
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + 6); // Dimanche
+    dates.push(date);
+  }
+
+  return dates;
 }
 
 /**
@@ -469,6 +518,7 @@ async function importLignes() {
 
         // 2. Traiter les sens
         for (const sensData of ligneData.sens) {
+          const jourFonctionnement = extractJourFonctionnement(sensData.nom);
           const sens = await prisma.sens.upsert({
             where: {
               ligneId_nom: {
@@ -480,23 +530,21 @@ async function importLignes() {
               ligneId: ligne.id,
               nom: sensData.nom,
               direction: sensData.direction || null,
+              jourFonctionnement: jourFonctionnement,
               statut: "Actif"
             },
             update: {
               direction: sensData.direction || null,
+              jourFonctionnement: jourFonctionnement,
               statut: "Actif"
             }
           });
 
-          console.log(`   ✓ Sens créé/mis à jour: ${sens.nom}`);
+          console.log(`   ✓ Sens créé/mis à jour: ${sens.nom} (${jourFonctionnement})`);
 
           // 3. Créer les services pour ce sens
-          // ⚠️ Le calendrier utilisé ici est celui de la ligne.
-          // Si tu veux un calendrier différent selon SEMAINE/SAMEDI/DIMFER,
-          // on peut parser le prefix du sens ("SEMAINE -", "SAMEDI -", "DIMFER -")
-          // et générer les dates en conséquence.
-          const calendrier = parseJours(ligneData.jours);
-          const serviceDates = generateServiceDates(calendrier);
+          // Générer les dates selon le jour de fonctionnement du sens
+          const serviceDates = generateServiceDatesByJour(jourFonctionnement);
 
           for (const serviceData of sensData.services) {
             const heureDebut = parseHeure(serviceData.heureDebut);

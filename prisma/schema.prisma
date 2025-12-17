@@ -189,17 +189,21 @@ model Sens {
   ligneId         String
   ligne           Ligne    @relation(fields: [ligneId], references: [id], onDelete: Cascade)
   
-  nom             String   // ex: "Aller", "Retour", "Bidirectionnel"
+  nom             String   // ex: "Semaine Aller", "Samedi Retour", "Dimanche & fériés Aller"
   direction       String?  // ex: "Gare SNCF → Centre Ville"
   ordre           Int      @default(1)
   statut          String   @default("Actif")
+  
+  // Jour de fonctionnement du sens
+  jourFonctionnement String  @default("SEMAINE") // "SEMAINE", "SAMEDI", "DIMANCHE_FERIES"
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relations
   services        Service[]
 
-  @@index([ligneId, statut])
+  @@index([ligneId, statut, jourFonctionnement])
   @@unique([ligneId, nom])
 }
 
