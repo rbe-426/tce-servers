@@ -978,15 +978,29 @@ app.get('/api/services', async (req, res) => {
     if (!prismaReady) {
       return res.status(503).json({ error: 'Database not ready' });
     }
-    const { ligneId, conducteurId, date } = req.query;
+    const { ligneId, conducteurId, date, dateFrom, dateTo } = req.query;
     const where = {};
     if (ligneId) where.ligneId = ligneId;
     if (conducteurId) where.conducteurId = conducteurId;
+    
+    // Gérer date unique ou plage de dates
     if (date) {
       const d = new Date(date);
       const nextDay = new Date(d);
       nextDay.setDate(nextDay.getDate() + 1);
       where.date = { gte: d, lt: nextDay };
+    } else if (dateFrom || dateTo) {
+      where.date = {};
+      if (dateFrom) {
+        const [year, month, day] = dateFrom.split('-').map(Number);
+        where.date.gte = new Date(year, month - 1, day, 0, 0, 0, 0);
+      }
+      if (dateTo) {
+        const [year, month, day] = dateTo.split('-').map(Number);
+        const end = new Date(year, month - 1, day, 0, 0, 0, 0);
+        end.setDate(end.getDate() + 1);
+        where.date.lt = end;
+      }
     }
 
     const services = await prisma.service.findMany({
