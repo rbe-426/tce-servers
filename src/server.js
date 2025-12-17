@@ -896,6 +896,7 @@ app.post('/api/lignes', async (req, res) => {
       typesVehicules: Array.isArray(b.typesVehicules) ? JSON.stringify(b.typesVehicules) : '[]',
       statut: String(b.statut || 'Actif'),
       description: b.description || null,
+      demandeChrono: b.demandeChrono === true,
     };
 
     const ligne = await prisma.ligne.create({ 
@@ -943,6 +944,7 @@ app.put('/api/lignes/:id', async (req, res) => {
       typesVehicules: Array.isArray(b.typesVehicules) ? JSON.stringify(b.typesVehicules) : (b.typesVehicules ?? undefined),
       heureDebut: b.heureDebut ?? undefined,
       heureFin: b.heureFin ?? undefined,
+      demandeChrono: b.demandeChrono ?? undefined,
       calendrierJson: b.calendrierJson ?? undefined,
       contraintes: b.contraintes ?? undefined,
     };

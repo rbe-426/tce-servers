@@ -171,6 +171,7 @@ model Ligne {
   calendrierJson  String?  // {"lundi":true,"mardi":true,"mercredi":true,"jeudi":true,"vendredi":true,"samedi":false,"dimanche":false}
   
   // Contraintes d'exploitation
+  demandeChrono   Boolean  @default(false) // Demande la vérification de la carte chrono
   contraintes     String?  // JSON array: ["Vacances scolaires", "Navette professionnelle", "Période estivale", etc.]
   
   createdAt       DateTime @default(now())
