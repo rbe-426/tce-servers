@@ -1169,9 +1169,21 @@ app.get('/api/pointages', async (req, res) => {
 app.get('/api/pointages/stats/daily', async (req, res) => {
   try {
     const { date } = req.query;
-    const targetDate = date ? new Date(date) : new Date();
-    const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-    const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+    // Parse la date en format YYYY-MM-DD de manière cohérente en timezone local
+    let startOfDay, endOfDay, responseDate;
+    if (date) {
+      const [year, month, day] = date.split('-').map(Number);
+      startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+      endOfDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+      responseDate = date; // Utiliser la date demandée directement
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+      responseDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    console.log(`[STATS] Fetching stats for ${responseDate} (requested: ${date || 'today'})`);
 
     // Récupérer tous les pointages du jour
     const pointages = await prisma.pointage.findMany({
@@ -1197,6 +1209,8 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       },
       include: { ligne: true, conducteur: true },
     });
+
+    console.log(`[STATS] Found ${services.length} services, ${pointages.length} pointages`);
 
     // Statistiques détaillées
     const totalServices = services.length;
@@ -1290,8 +1304,8 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       s.expirationPointage && new Date(s.expirationPointage) < new Date()
     ).length;
 
-    res.json({
-      date: startOfDay.toISOString().split('T')[0],
+    const response = {
+      date: responseDate,
       totalServices,
       totalPointages,
       validationRate,
@@ -1310,7 +1324,10 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
         : 0,
       nonAssuuredStats,
       expiredServices,
-    });
+    };
+
+    console.log(`[STATS] Responding with hourlyDistribution:`, Object.keys(hourlyDistribution).length > 0 ? 'OK' : 'EMPTY');
+    res.json(response);
   } catch (e) {
     console.error('GET /api/pointages/stats/daily ERROR ->', e);
     res.status(400).json({ error: String(e) });
