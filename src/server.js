@@ -1018,6 +1018,45 @@ app.get('/api/services', async (req, res) => {
   }
 });
 
+// GET non-assured services (services non assurés)
+app.get('/api/services/non-assured/list', async (req, res) => {
+  try {
+    const { dateFrom, dateTo, motif } = req.query;
+    const where = {
+      statut: 'Non assuré'
+    };
+
+    if (dateFrom || dateTo) {
+      where.date = {};
+      if (dateFrom) where.date.gte = new Date(dateFrom);
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setDate(toDate.getDate() + 1);
+        where.date.lt = toDate;
+      }
+    }
+
+    if (motif) {
+      where.motifNonAssurance = motif;
+    }
+
+    const services = await prisma.service.findMany({
+      where,
+      include: { 
+        ligne: true, 
+        conducteur: true,
+        sens: true 
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    res.json(services);
+  } catch (e) {
+    console.error('GET /api/services/non-assured/list ERROR ->', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // DETAIL
 app.get('/api/services/:id', async (req, res) => {
   try {
