@@ -1072,6 +1072,9 @@ app.put('/api/services/:id', async (req, res) => {
       heureDebut: b.heureDebut ?? undefined,
       heureFin: b.heureFin ?? undefined,
       statut: b.statut ?? undefined,
+      motifNonAssurance: b.motifNonAssurance ?? undefined,
+      motifsDetails: b.motifsDetails ?? undefined,
+      expirationPointage: b.expirationPointage ? new Date(b.expirationPointage) : undefined,
     };
 
     const service = await prisma.service.update({
@@ -1223,6 +1226,31 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       lineStats[lineNum].pointages++;
     });
 
+    // Services non assurés - analyser les motifs
+    const nonAssuuredServices = services.filter(s => s.statut === 'Non assuré');
+    const nonAssuuredStats = {
+      total: nonAssuuredServices.length,
+      byReason: {}
+    };
+
+    // Motifs possibles
+    const possibleMotifs = [
+      'Absence',
+      'Refus pointage',
+      'Refus permis/CNI',
+      'Absence véhicule',
+      'Absence conducteur'
+    ];
+
+    possibleMotifs.forEach(motif => {
+      nonAssuuredStats.byReason[motif] = nonAssuuredServices.filter(s => s.motifNonAssurance === motif).length;
+    });
+
+    // Services expirés
+    const expiredServices = services.filter(s => 
+      s.expirationPointage && new Date(s.expirationPointage) < new Date()
+    ).length;
+
     res.json({
       date: startOfDay.toISOString().split('T')[0],
       totalServices,
@@ -1241,6 +1269,8 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       avgTachographCheckRate: totalPointages > 0
         ? Math.round((Object.values(conductorStats).reduce((sum, c) => sum + c.chronometerChecked, 0) / totalPointages) * 100)
         : 0,
+      nonAssuuredStats,
+      expiredServices,
     });
   } catch (e) {
     console.error('GET /api/pointages/stats/daily ERROR ->', e);

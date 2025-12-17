@@ -217,7 +217,14 @@ model Service {
   date            DateTime
   heureDebut      String   // "06:30"
   heureFin        String   // "18:45"
-  statut          String   @default("Planifiée") // "Planifiée", "En cours", "Terminée", "Annulée"
+  statut          String   @default("Planifiée") // "Planifiée", "En cours", "Terminée", "Annulée", "Non assuré"
+  
+  // Motif de non-assurance (si statut = "Non assuré")
+  motifNonAssurance String? // "Absence", "Refus pointage", "Refus permis/CNI", "Absence véhicule", "Absence conducteur"
+  motifsDetails   String?  // Détails additionnels en JSON si besoin
+  
+  // Expiration pointage - après cette date, la saisie est manuelle seulement
+  expirationPointage DateTime?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -226,6 +233,7 @@ model Service {
 
   @@index([ligneId, date, statut])
   @@index([conducteurId])
+  @@index([statut, date])
 }
 
 model Pointage {
