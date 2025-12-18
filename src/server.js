@@ -3085,7 +3085,22 @@ app.post('/api/fraise/vehicules', async (req, res) => {
   try {
     const { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes } = req.body;
     const vehicule = await prisma.fraiseVehicule.create({
-      data: { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes },
+      data: { 
+        dossierId, 
+        immatriculation, 
+        marque, 
+        modele, 
+        annee, 
+        kilometre, 
+        vin: vin || null, 
+        carburant: carburant || 'Diesel', 
+        boite: boite || 'Automatique', 
+        couleur: couleur || '', 
+        etat: etat || 'Bon', 
+        prixAchat: prixAchat || null, 
+        prixVente: prixVente || null, 
+        notes: notes || null 
+      },
       include: { dossier: true }
     });
     res.status(201).json(vehicule);
