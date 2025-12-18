@@ -2572,7 +2572,22 @@ async function processImportVehicles(csvText, res) {
       const immat = values[columnIndices['immat']];
       const km = parseInt(values[columnIndices['km']]) || 0;
       const tauxSante = parseInt(values[columnIndices['tauxsante']]) || 0;
-      const statut = values[columnIndices['statut']];
+      
+      // Mapper les états CSV vers les états valides de l'app
+      const rawStatut = values[columnIndices['statut']] || '';
+      const statutMapping = {
+        'Actif': 'Disponible',
+        'Disponible': 'Disponible',
+        'Indisponible': 'Indisponible',
+        'Atelier': 'Atelier',
+        'Aux Ateliers': 'Atelier',
+        'A VENIR': 'A VENIR',
+        'Affecté': 'Affecté',
+        'Au CT': 'Au CT',
+        'Réformé': 'Réformé',
+        'Suspendu': 'Indisponible',
+      };
+      const statut = statutMapping[rawStatut] || 'Disponible';
 
       // Valider les données requises
       if (!parc || !type || !modele || !immat || statut === undefined) {
