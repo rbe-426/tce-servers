@@ -3865,6 +3865,94 @@ async function startServer() {
     console.warn('⚠️  Starting server without database connection...');
   }
 
+  // ========== ADMIN ENDPOINT ==========
+  // Régénérer les services via une requête HTTP
+  app.post('/api/admin/regenerate-services', async (_req, res) => {
+    try {
+      if (!prisma) {
+        return res.status(503).json({ error: 'Database not ready' });
+      }
+
+      console.log('[ADMIN] Starting service regeneration...');
+      
+      // Récupérer tous les sens avec leurs services
+      const allSens = await prisma.sens.findMany({
+        include: { ligne: true, services: true }
+      });
+
+      let totalDeleted = 0;
+      let totalCreated = 0;
+
+      for (const sens of allSens) {
+        // Générer dates pour ce sens (1 mois)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const endDate = new Date(today);
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        const dates = [];
+        const dayOfWeek = today.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - daysToMonday);
+        monday.setHours(0, 0, 0, 0);
+
+        const jourFonctionnement = sens.jourFonctionnement || 'SEMAINE';
+        
+        if (jourFonctionnement === 'SEMAINE') {
+          for (let i = 0; i < 5; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            if (d >= today && d <= endDate) dates.push(d);
+          }
+        } else if (jourFonctionnement === 'SAMEDI') {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + 5);
+          if (d >= today && d <= endDate) dates.push(d);
+        } else if (jourFonctionnement === 'DIMANCHE_FERIES') {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + 6);
+          if (d >= today && d <= endDate) dates.push(d);
+        }
+
+        // Supprimer anciens services
+        const deleted = await prisma.service.deleteMany({
+          where: { sensId: sens.id }
+        });
+        totalDeleted += deleted.count;
+
+        // Créer nouveaux services
+        const servicesToCreate = [];
+        for (const date of dates) {
+          for (const template of sens.services) {
+            servicesToCreate.push({
+              ligneId: sens.ligneId,
+              sensId: sens.id,
+              date,
+              heureDebut: template.heureDebut,
+              heureFin: template.heureFin,
+              statut: 'Planifiée'
+            });
+          }
+        }
+
+        if (servicesToCreate.length > 0) {
+          const created = await prisma.service.createMany({
+            data: servicesToCreate,
+            skipDuplicates: true
+          });
+          totalCreated += created.count;
+        }
+      }
+
+      console.log(`[ADMIN] Regeneration complete: ${totalDeleted} deleted, ${totalCreated} created`);
+      res.json({ ok: true, deleted: totalDeleted, created: totalCreated });
+    } catch (e) {
+      console.error('[ADMIN] Error:', e.message);
+      res.status(500).json({ error: String(e.message) });
+    }
+  });
+
   console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
   const server = app.listen(PORT, HOST, () => {
     console.log(`🚀 TC Outil - API running on http://${HOST}:${PORT}`);
