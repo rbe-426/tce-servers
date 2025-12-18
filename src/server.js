@@ -198,29 +198,26 @@ app.get('/api/stats', async (_req, res) => {
 
     const [
       totalServices,
-      servicesPlanned,
-      servicesCompleted,
       totalConductors,
       totalVehicles,
       todayServices,
+      todayPlanned,
       todayCompleted
     ] = await Promise.all([
       prisma.service.count(),
-      prisma.service.count({ where: { statut: 'Planifiée' } }),
-      prisma.service.count({ where: { statut: 'Terminée' } }),
       prisma.conducteur.count(),
       prisma.vehicle.count(),
       prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate } } }),
+      prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Planifiée' } }),
       prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Terminée' } })
     ]);
 
     res.json({
       totalServices,
-      servicesPlanned,
-      servicesCompleted,
       totalConductors,
       totalVehicles,
       todayServices,
+      todayPlanned,
       todayCompleted
     });
   } catch (e) {
