@@ -226,6 +226,63 @@ app.get('/api/diagnostic', async (_req, res) => {
 
 // ========== VEHICLES ==========
 
+// Configuration des véhicules éligibles par ligne
+const VEHICLE_LINES_ELIGIBILITY = {
+  '4201': ['Standard', 'Standard BHNS', 'Articulé', 'Articulé BHNS'],
+  '4202': ['Standard', 'Standard BHNS'],
+  '4203': ['Articulé', 'Articulé BHNS', 'Standard', 'Standard BHNS'],
+  '4204': ['Standard', 'Standard BHNS'],
+  '4205': ['Standard', 'Standard BHNS'],
+  '4206': ['Articulé', 'Articulé BHNS'],
+  '4212': ['Standard', 'Standard BHNS'],
+  '4213': ['Standard', 'Standard BHNS'],
+  'N139': ['Autocar'],
+};
+
+// GET all vehicle types available
+app.get('/api/vehicle-types', async (_req, res) => {
+  try {
+    const vehicles = await prisma.vehicle.findMany({
+      select: { type: true },
+      distinct: ['type'],
+    });
+    const types = vehicles
+      .map(v => v.type)
+      .filter(t => t && t.trim() !== '')
+      .sort();
+    res.json({ types });
+  } catch (e) {
+    console.error('GET /api/vehicle-types ERROR ->', e.message);
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
+// GET eligible vehicles for a specific line
+app.get('/api/vehicles/eligible/:ligne', async (req, res) => {
+  try {
+    const { ligne } = req.params;
+    const eligibleTypes = VEHICLE_LINES_ELIGIBILITY[ligne] || [];
+    
+    if (eligibleTypes.length === 0) {
+      return res.json({ ligne, eligibleTypes: [], vehicles: [], message: 'Aucun type de véhicule défini pour cette ligne' });
+    }
+    
+    const vehicles = await prisma.vehicle.findMany({
+      where: {
+        type: {
+          in: eligibleTypes,
+        },
+      },
+      orderBy: [{ type: 'asc' }, { parc: 'asc' }],
+    });
+    
+    res.json({ ligne, eligibleTypes, vehicles });
+  } catch (e) {
+    console.error('GET /api/vehicles/eligible/:ligne ERROR ->', e.message);
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 // LIST
 app.get('/api/vehicles', async (_req, res) => {
   try {
