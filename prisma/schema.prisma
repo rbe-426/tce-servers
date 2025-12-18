@@ -333,6 +333,9 @@ model FraiseClient {
   // Relations
   dossiers        FraiseDossier[]
   transactions    FraiseTransaction[]
+  interactions    FraiseInteraction[]
+  tokens          FraiseClientToken[]
+  documents       FraiseDocument[]
 
   @@index([email, statut])
   @@index([typeClient])
@@ -364,6 +367,8 @@ model FraiseDossier {
   vehicules       FraiseVehicule[]
   transactions    FraiseTransaction[]
   locationModulations FraiseLocationModulation[]
+  budgets         FraiseBudget[]
+  documents       FraiseDocument[]
 
   @@index([clientId, statut])
   @@index([numero])
@@ -504,5 +509,136 @@ model FraiseTransaction {
   @@index([clientId])
   @@index([type])
 }
+
+// ==================== FRAISE CRM - Suivi complet ====================
+
+// Historique des interactions avec le client
+model FraiseInteraction {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          FraiseClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  type            String   // "Appel", "Email", "Visite", "Réunion", "Document", "Paiement"
+  titre           String
+  description     String?
+  notes           String?
+  
+  statut          String   @default("Complétée") // "Complétée", "En attente suivi", "Archivée"
+  resultat        String?  // "Positif", "Négatif", "Neutre", "À relancer"
+  
+  dateInteraction DateTime @default(now())
+  dateProchaineSuite DateTime?
+  
+  responsable     String?  // Email de la personne responsable
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([clientId, dateInteraction])
+  @@index([type, statut])
+}
+
+// Authentification/Tokens clients pour les portails de suivi
+model FraiseClientToken {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          FraiseClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  token           String   @unique // Token JWT ou simple
+  motDePasse      String?  // Hash du MDP si authentification locale
+  
+  typeAcces       String   @default("LECTURE") // "LECTURE", "LECTURE_ECRITURE", "ADMIN"
+  
+  dateExpiration  DateTime?
+  dateLastUsed    DateTime?
+  
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([token])
+}
+
+// Budget/Devis associé au dossier
+model FraiseBudget {
+  id              String   @id @default(cuid())
+  dossierId       String
+  dossier         FraiseDossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  reference       String   @unique // Ex: BUDGET-2025-001
+  titre           String
+  description     String?
+  
+  montantHT       Float    @default(0)
+  montantTVA      Float    @default(0)
+  montantTTC      Float    @default(0)
+  
+  statut          String   @default("Brouillon") // "Brouillon", "Proposé", "Accepté", "Rejeté", "Facturé"
+  
+  dateCreation    DateTime @default(now())
+  dateValidite    DateTime?
+  dateAcceptation DateTime?
+  
+  lignesJson      String?  // JSON array de lignes de budget
+  conditions      String?  // Conditions particulières
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dossierId, statut])
+  @@index([reference])
+}
+
+// Documents stockés (factures, contrats, etc)
+model FraiseDocument {
+  id              String   @id @default(cuid())
+  dossierId       String?
+  dossier         FraiseDossier? @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  clientId        String?
+  client          FraiseClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  titre           String
+  typeDocument    String   // "Facture", "Devis", "Contrat", "Photo", "Certificat", "Carte grise", "Autre"
+  
+  urlDocument     String?  // URL stockage (S3, etc)
+  nomFichier      String?
+  mimeType        String?  // "application/pdf", "image/jpeg", etc
+  
+  dateDocument    DateTime?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dossierId])
+  @@index([clientId])
+  @@index([typeDocument])
+}
+
+// Changelog/Audit des modifications
+model FraiseAudit {
+  id              String   @id @default(cuid())
+  dossierId       String?
+  clientId        String?
+  
+  entite          String   // "Dossier", "Client", "Vehicule", "Transaction"
+  action          String   // "CREATE", "UPDATE", "DELETE"
+  
+  ancienneValeur  String?  // JSON de l'ancienne valeur
+  nouvelleValeur  String?  // JSON de la nouvelle valeur
+  
+  utilisateur     String?  // Email utilisateur
+  raison          String?  // Raison de la modification
+  
+  createdAt       DateTime @default(now())
+
+  @@index([dossierId])
+  @@index([clientId])
+  @@index([entite, action])
+}
+
 
 
