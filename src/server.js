@@ -2518,16 +2518,27 @@ app.post('/api/import/vehicles', async (req, res) => {
 // Helper: Traiter l'import des véhicules
 async function processImportVehicles(csvText, res) {
   // Parse le CSV (format simple à une seule section)
-  const lines = csvText.trim().split('\n').filter(line => line.trim());
+  let lines = csvText.trim().split('\n');
+  
+  console.log(`[IMPORT] Nombre de lignes brutes: ${lines.length}`);
+  console.log(`[IMPORT] Première ligne: ${lines[0]?.substring(0, 100)}`);
+  console.log(`[IMPORT] Dernière ligne: ${lines[lines.length - 1]?.substring(0, 100)}`);
+  
+  // Filtrer les lignes vides
+  lines = lines.filter(line => line && line.trim().length > 0);
+  
+  console.log(`[IMPORT] Nombre de lignes après filtrage: ${lines.length}`);
   
   if (lines.length < 2) {
-    throw new Error('CSV vide ou invalide');
+    throw new Error(`CSV vide ou invalide (${lines.length} ligne(s) trouvée(s), besoin de au moins 2)`);
   }
 
   // Extraire les headers
   const headers = lines[0]
     .split(',')
     .map(h => h.trim().toLowerCase());
+
+  console.log(`[IMPORT] Headers trouvés: ${headers.join(', ')}`);
 
   // Valider les colonnes requises
   const requiredColumns = ['parc', 'type', 'modele', 'immat', 'km', 'tauxsante', 'statut'];
@@ -2550,6 +2561,8 @@ async function processImportVehicles(csvText, res) {
   for (let i = 1; i < lines.length; i++) {
     try {
       const line = lines[i];
+      if (!line || line.trim().length === 0) continue;
+      
       const values = line.split(',').map(v => v.trim());
 
       // Extraire les données requises
@@ -2572,8 +2585,8 @@ async function processImportVehicles(csvText, res) {
       const boite = columnIndices['boite'] !== undefined ? values[columnIndices['boite']] : null;
       const moteur = columnIndices['moteur'] !== undefined ? values[columnIndices['moteur']] : null;
       const portes = columnIndices['portes'] !== undefined ? parseInt(values[columnIndices['portes']]) : null;
-      const girouette = columnIndices['girouette'] !== undefined ? values[columnIndices['girouette']]?.toLowerCase() === 'oui' : null;
-      const clim = columnIndices['clim'] !== undefined ? values[columnIndices['clim']]?.toLowerCase() === 'oui' : null;
+      const girouette = columnIndices['girouette'] !== undefined ? values[columnIndices['girouette']] : null;
+      const clim = columnIndices['clim'] !== undefined ? values[columnIndices['clim']] : null;
       const pmr = columnIndices['pmr'] !== undefined ? values[columnIndices['pmr']]?.toLowerCase() === 'oui' : null;
       const ct = columnIndices['ct'] !== undefined ? values[columnIndices['ct']] : null;
 
@@ -2621,6 +2634,8 @@ async function processImportVehicles(csvText, res) {
     }
   }
 
+  console.log(`[IMPORT] Résultat: ${imported} importé(s), ${errors.length} erreur(s)`);
+  
   res.json({
     imported,
     errors: errors.length > 0 ? errors : undefined,
