@@ -11,7 +11,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function generateServicesNoDuplication() {
-  console.log("🚀 Génération des services (sans duplication par date)...\n");
+  console.log("🚀 Génération des services (sans duplication par type, projection 1 mois)...\n");
 
   try {
     // 1. Récupérer tous les sens
@@ -26,6 +26,13 @@ async function generateServicesNoDuplication() {
 
     let totalDeleted = 0;
     let totalCreated = 0;
+
+    // Générer les dates pour 1 mois
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 1);
 
     for (const sens of allSens) {
       const jourFonctionnement = sens.jourFonctionnement || 'SEMAINE';
@@ -51,21 +58,41 @@ async function generateServicesNoDuplication() {
       totalDeleted += deleted.count;
       console.log(`   ✓ ${deleted.count} anciens services supprimés`);
 
-      // Créer les nouveaux services UNE SEULE FOIS (pas de duplication par date)
-      // Utiliser aujourd'hui comme date de référence
-      const referenceDate = new Date();
-      referenceDate.setHours(0, 0, 0, 0);
-
+      // Créer les nouveaux services pour chaque jour correspondant au jourFonctionnement
       const servicesToCreate = [];
-      for (const template of templates) {
-        servicesToCreate.push({
-          ligneId: sens.ligneId,
-          sensId: sens.id,
-          date: referenceDate,  // Même date pour tous (date de référence)
-          heureDebut: template.heureDebut,
-          heureFin: template.heureFin,
-          statut: "Planifiée"
-        });
+      const currentDate = new Date(today);
+      
+      while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay(); // 0=dim, 1=lun, ..., 6=sam
+        
+        let shouldInclude = false;
+        
+        if (jourFonctionnement === 'SEMAINE') {
+          // Lundi à vendredi (1-5)
+          shouldInclude = dayOfWeek >= 1 && dayOfWeek <= 5;
+        } else if (jourFonctionnement === 'SAMEDI') {
+          // Samedi (6)
+          shouldInclude = dayOfWeek === 6;
+        } else if (jourFonctionnement === 'DIMANCHE_FERIES') {
+          // Dimanche (0)
+          shouldInclude = dayOfWeek === 0;
+        }
+        
+        if (shouldInclude) {
+          // Pour chaque jour correspondant, créer une instance de chaque template
+          for (const template of templates) {
+            servicesToCreate.push({
+              ligneId: sens.ligneId,
+              sensId: sens.id,
+              date: new Date(currentDate),
+              heureDebut: template.heureDebut,
+              heureFin: template.heureFin,
+              statut: "Planifiée"
+            });
+          }
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
       }
       
       // Créer tous les services en une seule requête
@@ -81,11 +108,11 @@ async function generateServicesNoDuplication() {
 
     // Résumé
     console.log("=".repeat(60));
-    console.log("✨ GÉNÉRATION TERMINÉE (sans duplication)");
+    console.log("✨ GÉNÉRATION TERMINÉE (projection hebdomadaire optimisée)");
     console.log("=".repeat(60));
     console.log(`🗑️  Services supprimés: ${totalDeleted}`);
     console.log(`✅ Services créés: ${totalCreated}`);
-    console.log("\n💡 Les services sont filtrés par jourFonctionnement:");
+    console.log("\n💡 Les services sont générés pour 1 mois et filtrés par jourFonctionnement:");
     console.log("   • Lundi-Vendredi: SEMAINE");
     console.log("   • Samedi: SAMEDI");
     console.log("   • Dimanche/Fériés: DIMANCHE_FERIES");
