@@ -21,6 +21,69 @@ const prisma = new PrismaClient();
 // ⚠️ Données réelles calculées depuis les PDF fournis
 const LIGNES_DATA = [
   {
+    "numero": "4201",
+    "nom": "LIGNE_4201",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "04h30",
+    "heureFin": "00h30",
+    "sens": [
+      {
+        "nom": "SEMAINE - Aller",
+        "direction": "Gare SNCF → Centre Ville",
+        "services": [
+          { "heureDebut": "04h37", "heureFin": "12h30" },
+          { "heureDebut": "12h30", "heureFin": "20h30" },
+          { "heureDebut": "20h30", "heureFin": "00h10" }
+        ]
+      },
+      {
+        "nom": "SEMAINE - Retour",
+        "direction": "Centre Ville → Gare SNCF",
+        "services": [
+          { "heureDebut": "04h50", "heureFin": "12h45" },
+          { "heureDebut": "12h45", "heureFin": "20h45" },
+          { "heureDebut": "20h45", "heureFin": "00h10" }
+        ]
+      },
+      {
+        "nom": "SAMEDI - Aller",
+        "direction": "Gare SNCF → Centre Ville",
+        "services": [
+          { "heureDebut": "06h00", "heureFin": "14h00" },
+          { "heureDebut": "14h00", "heureFin": "22h00" },
+          { "heureDebut": "22h00", "heureFin": "00h10" }
+        ]
+      },
+      {
+        "nom": "SAMEDI - Retour",
+        "direction": "Centre Ville → Gare SNCF",
+        "services": [
+          { "heureDebut": "06h10", "heureFin": "14h10" },
+          { "heureDebut": "14h10", "heureFin": "22h10" },
+          { "heureDebut": "22h10", "heureFin": "00h10" }
+        ]
+      },
+      {
+        "nom": "DIMFER - Aller",
+        "direction": "Gare SNCF → Centre Ville",
+        "services": [
+          { "heureDebut": "07h30", "heureFin": "15h30" },
+          { "heureDebut": "15h30", "heureFin": "23h30" }
+        ]
+      },
+      {
+        "nom": "DIMFER - Retour",
+        "direction": "Centre Ville → Gare SNCF",
+        "services": [
+          { "heureDebut": "07h45", "heureFin": "15h45" },
+          { "heureDebut": "15h45", "heureFin": "23h45" }
+        ]
+      }
+    ]
+  },
+
+  {
     "numero": "4202",
     "nom": "LIGNE_4202",
     "type": "autobus",
