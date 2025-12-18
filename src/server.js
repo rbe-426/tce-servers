@@ -3192,6 +3192,13 @@ app.use((req, res) => {
   });
 });
 
+// ---------- start ----------
+const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0';
+
+console.log('[STARTUP] Configured PORT:', PORT);
+console.log('[STARTUP] Configured HOST:', HOST);
+
 // Vérifier la connexion à la base de données avant de démarrer
 async function startServer() {
   console.log('[STARTUP] startServer() called');
