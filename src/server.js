@@ -1152,7 +1152,7 @@ app.put('/api/services/:id/non-assured', async (req, res) => {
     const service = await prisma.service.update({
       where: { id: req.params.id },
       data: {
-        statut: 'Non-Assuré',
+        statut: 'Non assuré',
         motifNonAssurance: motifNonAssurance,
         motifsDetails: notes || '',
       },
