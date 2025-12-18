@@ -301,6 +301,21 @@ app.get('/api/vehicles/:parc', async (req, res) => {
   res.json(v);
 });
 
+// GET vehicle history/mouvements
+app.get('/api/vehicles/:parc/history', async (req, res) => {
+  try {
+    const history = await prisma.vehicleStateHistory.findMany({
+      where: { vehicleId: req.params.parc },
+      orderBy: { changedAt: 'desc' },
+      take: 50,
+    });
+    res.json(history);
+  } catch (e) {
+    console.error('GET /api/vehicles/:parc/history ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // CREATE/UPSERT
 app.post('/api/vehicles', async (req, res) => {
   try {
@@ -365,6 +380,10 @@ app.post('/api/vehicles', async (req, res) => {
 app.put('/api/vehicles/:parc', async (req, res) => {
   try {
     const b = req.body;
+    const vehiculeActuel = await prisma.vehicle.findUnique({
+      where: { parc: req.params.parc },
+    });
+
     const data = {
       type: b.type ?? undefined,
       modele: b.modele ?? undefined,
@@ -407,6 +426,21 @@ app.put('/api/vehicles/:parc', async (req, res) => {
       where: { parc: req.params.parc },
       data,
     });
+
+    // Enregistrer le changement de statut s'il y a lieu
+    if (vehiculeActuel && b.statut && vehiculeActuel.statut !== b.statut) {
+      await prisma.vehicleStateHistory.create({
+        data: {
+          vehicleId: req.params.parc,
+          ancienStatut: vehiculeActuel.statut,
+          nouveauStatut: b.statut,
+          motif: b.motifChangement || 'Modification manuelle',
+          changedAt: new Date(),
+          changedBy: 'admin',
+        },
+      });
+      console.log(`[VEHICLE] Statut changé: ${req.params.parc} ${vehiculeActuel.statut} → ${b.statut}`);
+    }
 
     res.json(updated);
   } catch (e) {
