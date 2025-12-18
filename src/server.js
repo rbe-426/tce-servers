@@ -3084,6 +3084,27 @@ app.get('/api/fraise/vehicules', async (req, res) => {
 app.post('/api/fraise/vehicules', async (req, res) => {
   try {
     const { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes } = req.body;
+    
+    // Validation
+    if (!dossierId) {
+      return res.status(400).json({ error: 'dossierId est requis' });
+    }
+    if (!immatriculation) {
+      return res.status(400).json({ error: 'immatriculation est requis' });
+    }
+    if (!marque) {
+      return res.status(400).json({ error: 'marque est requis' });
+    }
+    if (!modele) {
+      return res.status(400).json({ error: 'modele est requis' });
+    }
+
+    // Vérifier que le dossier existe
+    const dossier = await prisma.fraiseDossier.findUnique({ where: { id: dossierId } });
+    if (!dossier) {
+      return res.status(404).json({ error: 'Dossier non trouvé' });
+    }
+
     const vehicule = await prisma.fraiseVehicule.create({
       data: { 
         dossierId, 
