@@ -2488,9 +2488,23 @@ app.post('/api/import/vehicles', async (req, res) => {
       return res.status(503).json({ error: 'Database not ready' });
     }
 
-    let csvText = req.csvContent || req.body || '';
+    let csvText = '';
+    
+    // Chercher le contenu dans différents endroits
+    if (req.csvContent) {
+      csvText = req.csvContent;
+    } else if (req.files && req.files.file) {
+      // Si c'est un upload multipart avec multer
+      csvText = req.files.file.data.toString('utf-8');
+    } else if (typeof req.body === 'string') {
+      // Si c'est du texte brut
+      csvText = req.body;
+    } else if (req.body && typeof req.body === 'object') {
+      // Si c'est du JSON avec un champ csvContent
+      csvText = req.body.csvContent || '';
+    }
 
-    if (!csvText) {
+    if (!csvText || csvText.trim().length === 0) {
       return res.status(400).json({ error: 'Aucun fichier CSV fourni' });
     }
 
