@@ -431,12 +431,11 @@ app.put('/api/vehicles/:parc', async (req, res) => {
     if (vehiculeActuel && b.statut && vehiculeActuel.statut !== b.statut) {
       await prisma.vehicleStateHistory.create({
         data: {
-          vehicleId: req.params.parc,
-          ancienStatut: vehiculeActuel.statut,
-          nouveauStatut: b.statut,
-          motif: b.motifChangement || 'Modification manuelle',
+          vehicleParc: req.params.parc,
+          fromStatus: vehiculeActuel.statut,
+          toStatus: b.statut,
+          note: b.motifChangement || 'Modification manuelle',
           changedAt: new Date(),
-          changedBy: 'admin',
         },
       });
       console.log(`[VEHICLE] Statut changé: ${req.params.parc} ${vehiculeActuel.statut} → ${b.statut}`);

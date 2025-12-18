@@ -7,12 +7,11 @@ export async function recordVehicleStateChange(vehicleId, ancienStatut, nouveauS
   try {
     const record = await prisma.vehicleStateHistory.create({
       data: {
-        vehicleId,
-        ancienStatut: ancienStatut || 'Disponible',
-        nouveauStatut,
-        motif,
+        vehicleParc: vehicleId,
+        fromStatus: ancienStatut || 'Disponible',
+        toStatus: nouveauStatut,
+        note: motif,
         changedAt: new Date(),
-        changedBy: 'système', // À améliorer avec l'utilisateur authentifié
       },
     });
     
