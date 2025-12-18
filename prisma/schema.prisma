@@ -645,5 +645,22 @@ model FraiseAudit {
   @@index([entite, action])
 }
 
+model Notification {
+  id              String   @id @default(cuid())
+  type            String   // "alerte" | "avertissement" | "positif"
+  titre           String
+  message         String
+  actif           Boolean  @default(true)
+  dateDebut       DateTime @default(now())
+  dateFin         DateTime? // Si null, notification permanente jusqu'à désactivation
+  
+  createdBy       String? // Email de l'utilisateur
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([actif, type])
+  @@index([dateDebut, dateFin])
+}
+
 
 

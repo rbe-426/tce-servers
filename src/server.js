@@ -3845,6 +3845,115 @@ async function startServer() {
   });
 }
 
+// ============ NOTIFICATIONS / DIFFUSION INFORMATIONS ============
+
+// GET - Toutes les notifications actives
+app.get('/api/notifications', async (_req, res) => {
+  try {
+    const now = new Date();
+    const notifications = await prisma.notification.findMany({
+      where: {
+        actif: true,
+        dateDebut: { lte: now },
+        OR: [
+          { dateFin: null },
+          { dateFin: { gte: now } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(notifications);
+  } catch (error) {
+    console.error('GET /api/notifications ERROR ->', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST - Créer une nouvelle notification
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const { type, titre, message, dateFin } = req.body;
+    
+    if (!type || !titre || !message) {
+      return res.status(400).json({ 
+        error: 'type, titre et message sont requis',
+        required: ['type', 'titre', 'message']
+      });
+    }
+
+    if (!['alerte', 'avertissement', 'positif'].includes(type)) {
+      return res.status(400).json({ 
+        error: 'type doit être: alerte, avertissement ou positif'
+      });
+    }
+
+    const notification = await prisma.notification.create({
+      data: {
+        type,
+        titre,
+        message,
+        dateFin: dateFin ? new Date(dateFin) : null,
+        createdBy: req.user?.email || 'système',
+      }
+    });
+    
+    res.status(201).json(notification);
+  } catch (error) {
+    console.error('POST /api/notifications ERROR ->', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT - Modifier une notification
+app.put('/api/notifications/:id', async (req, res) => {
+  try {
+    const { type, titre, message, actif, dateFin } = req.body;
+    
+    const notification = await prisma.notification.update({
+      where: { id: req.params.id },
+      data: {
+        ...(type && { type }),
+        ...(titre && { titre }),
+        ...(message && { message }),
+        ...(actif !== undefined && { actif }),
+        ...(dateFin && { dateFin: new Date(dateFin) }),
+      }
+    });
+    
+    res.json(notification);
+  } catch (error) {
+    console.error('PUT /api/notifications/:id ERROR ->', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE - Supprimer une notification
+app.delete('/api/notifications/:id', async (req, res) => {
+  try {
+    await prisma.notification.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('DELETE /api/notifications/:id ERROR ->', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PATCH - Désactiver une notification
+app.patch('/api/notifications/:id/disable', async (req, res) => {
+  try {
+    const notification = await prisma.notification.update({
+      where: { id: req.params.id },
+      data: { actif: false }
+    });
+    res.json(notification);
+  } catch (error) {
+    console.error('PATCH /api/notifications/:id/disable ERROR ->', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 console.log('[STARTUP] Calling startServer()...');
 startServer().catch(error => {
   console.error('Failed to start server:', error);

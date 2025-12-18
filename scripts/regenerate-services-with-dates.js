@@ -10,7 +10,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 /**
- * Génère les dates de services pour les 3 prochains mois
+ * Génère les dates de services pour le mois courant + 1 mois
  * @param jourFonctionnement "SEMAINE" | "SAMEDI" | "DIMANCHE_FERIES"
  * @returns array de dates au format "YYYY-MM-DD"
  */
@@ -19,9 +19,9 @@ function generateServiceDates(jourFonctionnement) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Générer pour 3 mois
+  // Générer pour 2 mois (plus rapide que 3)
   const endDate = new Date(today);
-  endDate.setMonth(endDate.getMonth() + 3);
+  endDate.setMonth(endDate.getMonth() + 2);
 
   const currentDate = new Date(today);
   
@@ -94,25 +94,30 @@ async function regenerateServices() {
       totalDeleted += deleted.count;
       console.log(`   ✓ ${deleted.count} anciens services supprimés`);
 
-      // Créer les nouveaux services
-      let countCreated = 0;
+      // Créer les nouveaux services en masse (beaucoup plus rapide)
+      const servicesToCreate = [];
       for (const date of serviceDates) {
         for (const template of templates) {
-          await prisma.service.create({
-            data: {
-              ligneId: sens.ligneId,
-              sensId: sens.id,
-              date: new Date(date),
-              heureDebut: template.heureDebut,
-              heureFin: template.heureFin,
-              statut: "Planifiée"
-            }
+          servicesToCreate.push({
+            ligneId: sens.ligneId,
+            sensId: sens.id,
+            date: new Date(date),
+            heureDebut: template.heureDebut,
+            heureFin: template.heureFin,
+            statut: "Planifiée"
           });
-          countCreated++;
         }
       }
-      totalCreated += countCreated;
-      console.log(`   ✓ ${countCreated} nouveaux services créés\n`);
+      
+      // Créer tous les services en une seule requête
+      if (servicesToCreate.length > 0) {
+        const created = await prisma.service.createMany({
+          data: servicesToCreate,
+          skipDuplicates: true
+        });
+        totalCreated += created.count;
+        console.log(`   ✓ ${created.count} nouveaux services créés\n`);
+      }
     }
 
     // Résumé
@@ -121,7 +126,7 @@ async function regenerateServices() {
     console.log("=".repeat(60));
     console.log(`🗑️  Services supprimés: ${totalDeleted}`);
     console.log(`✅ Services créés: ${totalCreated}`);
-    console.log("\n✨ Les services sont maintenant disponibles pour les 3 prochains mois!");
+    console.log("✨ Les services sont maintenant disponibles pour les 2 prochains mois!");
 
   } catch (error) {
     console.error("\n💥 Erreur:", error);
