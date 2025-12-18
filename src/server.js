@@ -1083,6 +1083,7 @@ app.get('/api/services', async (req, res) => {
       where,
       include: { ligne: true, conducteur: true },
       orderBy: { date: 'asc' },
+      take: 1000, // Limit to prevent timeout when no date filter is specified
     });
 
     // Dédupliquer les services (même ligne, même date, mêmes heures = garder que le premier)

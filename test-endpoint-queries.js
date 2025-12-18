@@ -6,10 +6,11 @@ async function testEndpoint() {
     console.log('[TEST] Starting server endpoint test...');
     
     // Simulate the exact query from the endpoint without parameters
-    console.log('[TEST] Query 1: No parameters');
+    console.log('[TEST] Query 1: No parameters (with limit to prevent hang)');
     let services = await prisma.service.findMany({
       include: { ligne: true, conducteur: true },
       orderBy: { date: 'asc' },
+      take: 100  // Added limit to prevent memory issues
     });
     console.log('✅ Success, found:', services.length);
     
