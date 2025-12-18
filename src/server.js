@@ -188,6 +188,46 @@ app.get('/api/today', (_req, res) => {
   res.json({ today: getTodayDateParis() });
 });
 
+// GET dashboard stats (without fetching all data)
+app.get('/api/stats', async (_req, res) => {
+  try {
+    const today = getTodayDateParis();
+    const todayDate = new Date(today + 'T00:00:00');
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+
+    const [
+      totalServices,
+      servicesPlanned,
+      servicesCompleted,
+      totalConductors,
+      totalVehicles,
+      todayServices,
+      todayCompleted
+    ] = await Promise.all([
+      prisma.service.count(),
+      prisma.service.count({ where: { statut: 'Planifiée' } }),
+      prisma.service.count({ where: { statut: 'Terminée' } }),
+      prisma.conducteur.count(),
+      prisma.vehicle.count(),
+      prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate } } }),
+      prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Terminée' } })
+    ]);
+
+    res.json({
+      totalServices,
+      servicesPlanned,
+      servicesCompleted,
+      totalConductors,
+      totalVehicles,
+      todayServices,
+      todayCompleted
+    });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 // Diagnostic endpoint
 app.get('/api/diagnostic', async (_req, res) => {
   try {
