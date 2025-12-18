@@ -1337,9 +1337,30 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       'GREVE AUTORISEE'
     ];
 
+    // Initialiser tous les motifs à 0
     possibleMotifs.forEach(motif => {
-      nonAssuuredStats.byReason[motif] = nonAssuuredServices.filter(s => s.motifNonAssurance === motif).length;
+      nonAssuuredStats.byReason[motif] = 0;
     });
+
+    // Compter les motifs
+    nonAssuuredServices.forEach(s => {
+      if (s.motifNonAssurance && possibleMotifs.includes(s.motifNonAssurance)) {
+        nonAssuuredStats.byReason[s.motifNonAssurance]++;
+      } else if (!s.motifNonAssurance) {
+        // Compter les services sans motif (NULL)
+        if (!nonAssuuredStats.byReason['Non spécifié']) {
+          nonAssuuredStats.byReason['Non spécifié'] = 0;
+        }
+        nonAssuuredStats.byReason['Non spécifié']++;
+      }
+    });
+
+    // DEBUG: Log the breakdown
+    console.log(`[STATS] Non-assured breakdown:`, nonAssuuredStats.byReason);
+    const motifTotal = Object.values(nonAssuuredStats.byReason).reduce((a, b) => a + b, 0);
+    if (motifTotal !== nonAssuuredStats.total) {
+      console.warn(`[STATS] ⚠️ Incohérence détectée: total=${nonAssuuredStats.total} mais motifs=${motifTotal}`);
+    }
 
     // Services expirés
     const expiredServices = services.filter(s => 
