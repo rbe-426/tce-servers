@@ -11,7 +11,15 @@ const prisma = new PrismaClient();
 async function exportData() {
   try {
     const vehicles = await prisma.vehicle.findMany();
-    const lignes = await prisma.ligne.findMany({ include: { sens: true } });
+    const lignes = await prisma.ligne.findMany({ 
+      include: { 
+        sens: {
+          include: {
+            services: true
+          }
+        }
+      }
+    });
 
     // Créer le fichier vehiculesBase.js
     const vehiclesCode = `// Auto-généré - Données depuis la base de données
@@ -27,7 +35,7 @@ export const lignesBase = ${JSON.stringify(lignes, null, 2)};
 `;
 
     fs.writeFileSync(path.join(frontendDataPath, 'lignesBase.js'), lignesCode);
-    console.log(`✅ ${lignes.length} lignes exportées`);
+    console.log(`✅ ${lignes.length} lignes exportées avec services`);
 
   } catch (err) {
     console.error('Erreur:', err.message);
