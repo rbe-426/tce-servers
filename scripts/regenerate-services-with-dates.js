@@ -10,7 +10,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 /**
- * Génère les dates de services pour le mois courant + 1 mois
+ * Génère les dates de services pour 1 mois maximum
  * @param jourFonctionnement "SEMAINE" | "SAMEDI" | "DIMANCHE_FERIES"
  * @returns array de dates au format "YYYY-MM-DD"
  */
@@ -19,9 +19,9 @@ function generateServiceDates(jourFonctionnement) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Générer pour 2 mois (plus rapide que 3)
+  // Générer pour 1 mois (délai maximal de dispo)
   const endDate = new Date(today);
-  endDate.setMonth(endDate.getMonth() + 2);
+  endDate.setMonth(endDate.getMonth() + 1);
 
   const currentDate = new Date(today);
   
