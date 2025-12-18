@@ -21,9 +21,9 @@ function generateServiceDates(jourFonctionnement) {
   const startDate = new Date(2025, 11, 15); // décembre = 11 (0-indexed)
   startDate.setHours(0, 0, 0, 0);
 
-  // Générer pour 1 mois
+  // Générer pour 2 semaines maximum (projection régulière)
   const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + 1);
+  endDate.setDate(endDate.getDate() + 14);
 
   const currentDate = new Date(startDate);
   
