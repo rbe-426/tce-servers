@@ -3321,6 +3321,253 @@ app.delete('/api/fraise/modulations/:id', async (req, res) => {
   }
 });
 
+// ==================== FRAISE INTERACTIONS ====================
+app.get('/api/fraise/interactions', async (req, res) => {
+  try {
+    const { clientId } = req.query;
+    const where = clientId ? { clientId } : {};
+    const interactions = await prisma.fraiseInteraction.findMany({
+      where,
+      include: { client: true },
+      orderBy: { dateInteraction: 'desc' }
+    });
+    res.json(interactions);
+  } catch (e) {
+    console.error('GET /api/fraise/interactions ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.post('/api/fraise/interactions', async (req, res) => {
+  try {
+    const { clientId, type, titre, description, notes, statut, resultat, dateProchaineSuite, responsable } = req.body;
+    const interaction = await prisma.fraiseInteraction.create({
+      data: {
+        clientId,
+        type,
+        titre,
+        description,
+        notes,
+        statut: statut || 'Complétée',
+        resultat,
+        dateProchaineSuite: dateProchaineSuite ? new Date(dateProchaineSuite) : null,
+        responsable
+      },
+      include: { client: true }
+    });
+    res.status(201).json(interaction);
+  } catch (e) {
+    console.error('POST /api/fraise/interactions ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.put('/api/fraise/interactions/:id', async (req, res) => {
+  try {
+    const interaction = await prisma.fraiseInteraction.update({
+      where: { id: req.params.id },
+      data: {
+        ...req.body,
+        dateProchaineSuite: req.body.dateProchaineSuite ? new Date(req.body.dateProchaineSuite) : undefined
+      }
+    });
+    res.json(interaction);
+  } catch (e) {
+    console.error('PUT /api/fraise/interactions/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// ==================== FRAISE BUDGETS ====================
+app.get('/api/fraise/budgets', async (req, res) => {
+  try {
+    const { dossierId } = req.query;
+    const where = dossierId ? { dossierId } : {};
+    const budgets = await prisma.fraiseBudget.findMany({
+      where,
+      include: { dossier: { include: { client: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(budgets);
+  } catch (e) {
+    console.error('GET /api/fraise/budgets ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.post('/api/fraise/budgets', async (req, res) => {
+  try {
+    const { dossierId, titre, description, montantHT, montantTVA, montantTTC, statut, dateValidite, lignesJson, conditions } = req.body;
+    const lastBudget = await prisma.fraiseBudget.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { reference: true }
+    });
+    const reference = `BUDGET-${new Date().getFullYear()}-${String(parseInt(lastBudget?.reference?.split('-')[2] || '0') + 1).padStart(3, '0')}`;
+    
+    const budget = await prisma.fraiseBudget.create({
+      data: {
+        dossierId,
+        reference,
+        titre,
+        description,
+        montantHT: montantHT || 0,
+        montantTVA: montantTVA || 0,
+        montantTTC: montantTTC || 0,
+        statut: statut || 'Brouillon',
+        dateValidite: dateValidite ? new Date(dateValidite) : null,
+        lignesJson,
+        conditions
+      },
+      include: { dossier: true }
+    });
+    res.status(201).json(budget);
+  } catch (e) {
+    console.error('POST /api/fraise/budgets ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.put('/api/fraise/budgets/:id', async (req, res) => {
+  try {
+    const budget = await prisma.fraiseBudget.update({
+      where: { id: req.params.id },
+      data: {
+        ...req.body,
+        dateValidite: req.body.dateValidite ? new Date(req.body.dateValidite) : undefined,
+        dateAcceptation: req.body.dateAcceptation ? new Date(req.body.dateAcceptation) : undefined
+      }
+    });
+    res.json(budget);
+  } catch (e) {
+    console.error('PUT /api/fraise/budgets/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// ==================== FRAISE DOCUMENTS ====================
+app.get('/api/fraise/documents', async (req, res) => {
+  try {
+    const { dossierId, clientId } = req.query;
+    const where = {};
+    if (dossierId) where.dossierId = dossierId;
+    if (clientId) where.clientId = clientId;
+    
+    const documents = await prisma.fraiseDocument.findMany({
+      where,
+      include: { dossier: true, client: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(documents);
+  } catch (e) {
+    console.error('GET /api/fraise/documents ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.post('/api/fraise/documents', async (req, res) => {
+  try {
+    const { dossierId, clientId, titre, typeDocument, urlDocument, nomFichier, mimeType, dateDocument, notes } = req.body;
+    const document = await prisma.fraiseDocument.create({
+      data: {
+        dossierId,
+        clientId,
+        titre,
+        typeDocument,
+        urlDocument,
+        nomFichier,
+        mimeType,
+        dateDocument: dateDocument ? new Date(dateDocument) : null,
+        notes
+      },
+      include: { dossier: true, client: true }
+    });
+    res.status(201).json(document);
+  } catch (e) {
+    console.error('POST /api/fraise/documents ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.delete('/api/fraise/documents/:id', async (req, res) => {
+  try {
+    const document = await prisma.fraiseDocument.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ success: true, document });
+  } catch (e) {
+    console.error('DELETE /api/fraise/documents/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// ==================== FRAISE CLIENT TOKENS ====================
+app.post('/api/fraise/client-tokens', async (req, res) => {
+  try {
+    const { clientId, typeAcces, dateExpiration } = req.body;
+    const token = require('crypto').randomBytes(32).toString('hex');
+    
+    const clientToken = await prisma.fraiseClientToken.create({
+      data: {
+        clientId,
+        token,
+        typeAcces: typeAcces || 'LECTURE',
+        dateExpiration: dateExpiration ? new Date(dateExpiration) : null
+      }
+    });
+    res.status(201).json(clientToken);
+  } catch (e) {
+    console.error('POST /api/fraise/client-tokens ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.get('/api/fraise/client-tokens/:clientId', async (req, res) => {
+  try {
+    const tokens = await prisma.fraiseClientToken.findMany({
+      where: { clientId: req.params.clientId },
+      select: { id: true, typeAcces: true, isActive: true, dateExpiration: true, dateLastUsed: true, createdAt: true }
+    });
+    res.json(tokens);
+  } catch (e) {
+    console.error('GET /api/fraise/client-tokens ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+app.put('/api/fraise/client-tokens/:id', async (req, res) => {
+  try {
+    const token = await prisma.fraiseClientToken.update({
+      where: { id: req.params.id },
+      data: req.body
+    });
+    res.json(token);
+  } catch (e) {
+    console.error('PUT /api/fraise/client-tokens/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// ==================== FRAISE AUDIT ====================
+app.get('/api/fraise/audit', async (req, res) => {
+  try {
+    const { dossierId, clientId, entite } = req.query;
+    const where = {};
+    if (dossierId) where.dossierId = dossierId;
+    if (clientId) where.clientId = clientId;
+    if (entite) where.entite = entite;
+    
+    const audit = await prisma.fraiseAudit.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json(audit);
+  } catch (e) {
+    console.error('GET /api/fraise/audit ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // ---------- 404 handler (DOIT ÊTRE APRÈS TOUTES LES ROUTES) ----------
 app.use((req, res) => {
   const origin = req.headers.origin;
