@@ -3178,6 +3178,113 @@ app.get('/api/fraise/stats', async (req, res) => {
   }
 });
 
+// ==================== FRAISE LOCATION MODULATIONS ====================
+
+// GET all modulations for a dossier
+app.get('/api/fraise/modulations', async (req, res) => {
+  try {
+    const { dossierId } = req.query;
+    const where = dossierId ? { dossierId } : {};
+    const modulations = await prisma.fraiseLocationModulation.findMany({
+      where,
+      include: { dossier: { include: { client: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(modulations);
+  } catch (e) {
+    console.error('GET /api/fraise/modulations ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// POST create modulation
+app.post('/api/fraise/modulations', async (req, res) => {
+  try {
+    const { 
+      dossierId, 
+      dureeMinJours, 
+      dureeMaxJours, 
+      typeVehicule, 
+      saisonalite,
+      prixJournalier, 
+      prixHebdo, 
+      prixMensuel,
+      caution,
+      assuranceIncluse,
+      kmLimite,
+      kmSupplementaire,
+      fraisNettoyage,
+      fraisAssurance,
+      fraisConfirm,
+      remise,
+      notes,
+      dateDebut,
+      dateFin
+    } = req.body;
+
+    const modulation = await prisma.fraiseLocationModulation.create({
+      data: {
+        dossierId,
+        dureeMinJours: dureeMinJours || 1,
+        dureeMaxJours,
+        typeVehicule,
+        saisonalite: saisonalite || 'ANNEE',
+        prixJournalier,
+        prixHebdo,
+        prixMensuel,
+        caution: caution || 0,
+        assuranceIncluse: assuranceIncluse !== false,
+        kmLimite,
+        kmSupplementaire,
+        fraisNettoyage: fraisNettoyage || 0,
+        fraisAssurance: fraisAssurance || 0,
+        fraisConfirm: fraisConfirm || 0,
+        remise: remise || 0,
+        notes,
+        dateDebut: dateDebut ? new Date(dateDebut) : null,
+        dateFin: dateFin ? new Date(dateFin) : null
+      },
+      include: { dossier: true }
+    });
+    res.status(201).json(modulation);
+  } catch (e) {
+    console.error('POST /api/fraise/modulations ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// PUT update modulation
+app.put('/api/fraise/modulations/:id', async (req, res) => {
+  try {
+    const modulation = await prisma.fraiseLocationModulation.update({
+      where: { id: req.params.id },
+      data: {
+        ...req.body,
+        dateDebut: req.body.dateDebut ? new Date(req.body.dateDebut) : undefined,
+        dateFin: req.body.dateFin ? new Date(req.body.dateFin) : undefined
+      },
+      include: { dossier: true }
+    });
+    res.json(modulation);
+  } catch (e) {
+    console.error('PUT /api/fraise/modulations/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
+// DELETE modulation
+app.delete('/api/fraise/modulations/:id', async (req, res) => {
+  try {
+    const modulation = await prisma.fraiseLocationModulation.delete({
+      where: { id: req.params.id }
+    });
+    res.json({ success: true, modulation });
+  } catch (e) {
+    console.error('DELETE /api/fraise/modulations/:id ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // ---------- 404 handler (DOIT ÊTRE APRÈS TOUTES LES ROUTES) ----------
 app.use((req, res) => {
   const origin = req.headers.origin;

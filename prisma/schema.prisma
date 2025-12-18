@@ -346,7 +346,7 @@ model FraiseDossier {
   
   titre           String
   description     String?
-  type            String   // "Achat", "Vente", "Import", "Export"
+  type            String   // "ACHAT_IMPORT", "ACHAT_EXPORT", "LOCATION_LONGUE_DUREE", "LOCATION_PONCTUELLE"
   statut          String   @default("Ouvert") // "Ouvert", "En cours", "Clôturé", "Annulé"
   
   dateCreation    DateTime @default(now())
@@ -363,10 +363,54 @@ model FraiseDossier {
   demandes        FraiseDemande[]
   vehicules       FraiseVehicule[]
   transactions    FraiseTransaction[]
+  locationModulations FraiseLocationModulation[]
 
   @@index([clientId, statut])
   @@index([numero])
   @@index([type, statut])
+}
+
+// ==================== FRAISE LOCATION - Modulations ====================
+model FraiseLocationModulation {
+  id              String   @id @default(cuid())
+  dossierId       String
+  dossier         FraiseDossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  // Critères de modulation
+  dureeMinJours   Int      @default(1)      // Durée minimale en jours
+  dureeMaxJours   Int?                      // Null = sans limite
+  
+  typeVehicule    String?                   // ex: "Minibus", "Autobus", null = tous les types
+  saisonalite     String   @default("ANNEE") // "ANNEE", "ETE", "HIVER", "VACANCES_SCOLAIRES"
+  
+  // Tarifs modulés
+  prixJournalier  Float                     // Prix par jour
+  prixHebdo       Float?                    // Prix par semaine (optionnel)
+  prixMensuel     Float?                    // Prix par mois (optionnel)
+  
+  // Conditions particulières
+  caution         Float   @default(0)       // Montant de caution
+  assuranceIncluse Boolean @default(true)   // L'assurance est-elle incluse?
+  kmLimite        Int?                      // Nombre de km/jour limité (null = illimité)
+  kmSupplementaire Float?                   // Prix par km supplémentaire
+  
+  // Frais additionnels
+  fraisNettoyage  Float   @default(0)
+  fraisAssurance  Float   @default(0)
+  fraisConfirm    Float   @default(0)       // Frais de confirmation
+  
+  remise          Float   @default(0)       // Remise en %
+  notes           String?
+  
+  dateDebut       DateTime?                 // Validité du tarif
+  dateFin         DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dossierId])
+  @@index([saisonalite])
+  @@unique([dossierId, dureeMinJours, saisonalite, typeVehicule])
 }
 
 model FraiseDemande {
