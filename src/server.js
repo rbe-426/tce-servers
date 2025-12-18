@@ -1376,6 +1376,61 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
   }
 });
 
+// Récupérer le détail des services non assurés pour une date donnée
+app.get('/api/pointages/unassured/detail', async (req, res) => {
+  try {
+    const { date } = req.query;
+    let startOfDay, endOfDay, responseDate;
+    if (date) {
+      const [year, month, day] = date.split('-').map(Number);
+      startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+      endOfDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+      responseDate = date;
+    } else {
+      const now = new Date();
+      startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+      responseDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    // Récupérer tous les services non assurés du jour
+    const unassuredServices = await prisma.service.findMany({
+      where: {
+        statut: 'Non assuré',
+        date: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+      include: {
+        ligne: true,
+        sens: true,
+        conducteur: true,
+      },
+      orderBy: { heureDebut: 'asc' },
+    });
+
+    console.log(`[STATS] Services non assurés: ${unassuredServices.length}`);
+
+    res.json({
+      date: responseDate,
+      total: unassuredServices.length,
+      services: unassuredServices.map(s => ({
+        id: s.id,
+        ligne: s.ligne?.numero,
+        heure: `${s.heureDebut}-${s.heureFin}`,
+        direction: s.sens?.nom,
+        conducteur: s.conducteur ? `${s.conducteur.prenom} ${s.conducteur.nom}` : 'Non assigné',
+        motif: s.motifNonAssurance || 'Non spécifié',
+        details: s.motifsDetails,
+      })),
+    });
+  } catch (e) {
+    console.error('GET /api/pointages/unassured/detail ERROR ->', e);
+    res.status(400).json({ error: String(e) });
+  }
+});
+
 // DETAIL
 app.get('/api/pointages/:id', async (req, res) => {
   try {
