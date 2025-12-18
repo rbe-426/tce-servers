@@ -311,3 +311,154 @@ model Arret {
   @@unique([trajetId, ordre])
 }
 
+// ==================== FRAISE (Import/Export Véhicules) ====================
+
+model FraiseClient {
+  id              String   @id @default(cuid())
+  nom             String
+  prenom          String
+  email           String   @unique
+  telephone       String?
+  adresse         String?
+  codePostal      String?
+  ville           String?
+  pays            String   @default("France")
+  siret           String?
+  typeClient      String   // "Particulier", "Entreprise", "Concessionnaire"
+  statut          String   @default("Actif") // "Actif", "Inactif", "Suspendu"
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  dossiers        FraiseDossier[]
+  transactions    FraiseTransaction[]
+
+  @@index([email, statut])
+  @@index([typeClient])
+}
+
+model FraiseDossier {
+  id              String   @id @default(cuid())
+  numero          String   @unique // Numéro de dossier ex: FRAISE-2025-001
+  clientId        String
+  client          FraiseClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  titre           String
+  description     String?
+  type            String   // "Achat", "Vente", "Import", "Export"
+  statut          String   @default("Ouvert") // "Ouvert", "En cours", "Clôturé", "Annulé"
+  
+  dateCreation    DateTime @default(now())
+  dateEcheance    DateTime?
+  dateClosing     DateTime?
+  
+  montantTotal    Float    @default(0)
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  demandes        FraiseDemande[]
+  vehicules       FraiseVehicule[]
+  transactions    FraiseTransaction[]
+
+  @@index([clientId, statut])
+  @@index([numero])
+  @@index([type, statut])
+}
+
+model FraiseDemande {
+  id              String   @id @default(cuid())
+  dossierId       String
+  dossier         FraiseDossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  reference       String   @unique // Ref demande ex: DEM-2025-001
+  titre           String
+  description     String?
+  type            String   // "Devis", "Facture", "Bon de commande", "Bordereau"
+  statut          String   @default("Brouillon") // "Brouillon", "Envoyé", "Accepté", "Rejeté", "Réalisé"
+  
+  montant         Float
+  dateCreation    DateTime @default(now())
+  dateEnvoi       DateTime?
+  dateExpiration  DateTime?
+  
+  contenuJson     String?  // JSON avec détails
+  pieceJointeUrl  String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  transactions    FraiseTransaction[]
+
+  @@index([dossierId, statut])
+  @@index([reference])
+  @@index([type])
+}
+
+model FraiseVehicule {
+  id              String   @id @default(cuid())
+  dossierId       String
+  dossier         FraiseDossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  immatriculation String
+  marque          String
+  modele          String
+  annee           Int
+  kilometre       Int
+  vin             String?  // Numéro de châssis
+  
+  carburant       String   // "Essence", "Diesel", "Hybride", "Électrique"
+  boite           String   // "Manuelle", "Automatique"
+  couleur         String?
+  
+  etat            String   @default("Bon") // "Excellent", "Bon", "Passable", "Mauvais"
+  prixAchat       Float?
+  prixVente       Float?
+  statut          String   @default("En attente") // "En attente", "Acheté", "Vendu", "Exporté", "Annulé"
+  
+  photosJson      String?  // JSON array de URLs
+  documentsJson   String?  // Carte grise, certificat, etc
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dossierId, statut])
+  @@index([immatriculation])
+  @@index([marque, modele])
+}
+
+model FraiseTransaction {
+  id              String   @id @default(cuid())
+  dossierId       String
+  dossier         FraiseDossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  
+  clientId        String
+  client          FraiseClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  demandeId       String?
+  demande         FraiseDemande? @relation(fields: [demandeId], references: [id], onDelete: SetNull)
+  
+  type            String   // "Paiement", "Remboursement", "Frais", "Commission"
+  montant         Float
+  devise          String   @default("EUR")
+  statut          String   @default("En attente") // "En attente", "Effectué", "Annulé"
+  
+  methode         String?  // "Virement", "Carte", "Chèque", "Espèces"
+  reference       String?  // Numéro de transaction
+  dateTransaction DateTime?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dossierId, statut])
+  @@index([clientId])
+  @@index([type])
+}
+
+
