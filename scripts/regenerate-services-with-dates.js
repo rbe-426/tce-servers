@@ -16,14 +16,16 @@ const prisma = new PrismaClient();
  */
 function generateServiceDates(jourFonctionnement) {
   const dates = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  
+  // Commencer à partir de lundi 15 décembre 2025
+  const startDate = new Date(2025, 11, 15); // décembre = 11 (0-indexed)
+  startDate.setHours(0, 0, 0, 0);
 
-  // Générer pour 1 mois (délai maximal de dispo)
-  const endDate = new Date(today);
+  // Générer pour 1 mois
+  const endDate = new Date(startDate);
   endDate.setMonth(endDate.getMonth() + 1);
 
-  const currentDate = new Date(today);
+  const currentDate = new Date(startDate);
   
   while (currentDate <= endDate) {
     const dayOfWeek = currentDate.getDay(); // 0=dim, 1=lun, ..., 6=sam
