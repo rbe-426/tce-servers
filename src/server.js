@@ -2912,27 +2912,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ---------- 404 handler ----------
-app.use((req, res) => {
-  const origin = req.headers.origin;
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  res.status(404).json({
-    error: 'Not found',
-    path: req.path,
-  });
-});
-
-// ---------- start ----------
-const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0';
-
-console.log('[STARTUP] Configured PORT:', PORT);
-console.log('[STARTUP] Configured HOST:', HOST);
-
 // ==================== FRAISE ENDPOINTS ====================
 
 // FRAISE CLIENTS
@@ -3197,6 +3176,20 @@ app.get('/api/fraise/stats', async (req, res) => {
     console.error('GET /api/fraise/stats ERROR ->', e);
     res.status(400).json({ error: String(e) });
   }
+});
+
+// ---------- 404 handler (DOIT ÊTRE APRÈS TOUTES LES ROUTES) ----------
+app.use((req, res) => {
+  const origin = req.headers.origin;
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  res.status(404).json({
+    error: 'Not found',
+    path: req.path,
+  });
 });
 
 // Vérifier la connexion à la base de données avant de démarrer
