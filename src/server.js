@@ -2964,6 +2964,272 @@ async function startServer() {
     console.warn('⚠️  Starting server without database connection...');
   }
 
+  // ==================== FRAISE ENDPOINTS ====================
+
+  // FRAISE CLIENTS
+  app.get('/api/fraise/clients', async (req, res) => {
+    try {
+      const clients = await prisma.fraiseClient.findMany({
+        include: { 
+          dossiers: { where: { statut: { not: 'Clôturé' } } },
+          _count: { select: { dossiers: true, transactions: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(clients);
+    } catch (e) {
+      console.error('GET /api/fraise/clients ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/fraise/clients', async (req, res) => {
+    try {
+      const { nom, prenom, email, telephone, adresse, codePostal, ville, pays, siret, typeClient } = req.body;
+      const client = await prisma.fraiseClient.create({
+        data: { nom, prenom, email, telephone, adresse, codePostal, ville, pays, siret, typeClient: typeClient || 'Particulier' },
+      });
+      res.status(201).json(client);
+    } catch (e) {
+      console.error('POST /api/fraise/clients ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.put('/api/fraise/clients/:id', async (req, res) => {
+    try {
+      const client = await prisma.fraiseClient.update({
+        where: { id: req.params.id },
+        data: req.body,
+      });
+      res.json(client);
+    } catch (e) {
+      console.error('PUT /api/fraise/clients/:id ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  // FRAISE DOSSIERS
+  app.get('/api/fraise/dossiers', async (req, res) => {
+    try {
+      const { clientId } = req.query;
+      const where = clientId ? { clientId } : {};
+      const dossiers = await prisma.fraiseDossier.findMany({
+        where,
+        include: { 
+          client: true,
+          demandes: { where: { statut: { not: 'Rejeté' } } },
+          vehicules: true,
+          _count: { select: { demandes: true, vehicules: true, transactions: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(dossiers);
+    } catch (e) {
+      console.error('GET /api/fraise/dossiers ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/fraise/dossiers', async (req, res) => {
+    try {
+      const { clientId, titre, description, type, montantTotal } = req.body;
+      // Générer numéro de dossier unique
+      const lastDossier = await prisma.fraiseDossier.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { numero: true }
+      });
+      const numero = `FRAISE-${new Date().getFullYear()}-${String(parseInt(lastDossier?.numero?.split('-')[2] || '0') + 1).padStart(3, '0')}`;
+      
+      const dossier = await prisma.fraiseDossier.create({
+        data: { clientId, titre, description, type: type || 'Achat', numero, montantTotal: montantTotal || 0 },
+        include: { client: true }
+      });
+      res.status(201).json(dossier);
+    } catch (e) {
+      console.error('POST /api/fraise/dossiers ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.put('/api/fraise/dossiers/:id', async (req, res) => {
+    try {
+      const dossier = await prisma.fraiseDossier.update({
+        where: { id: req.params.id },
+        data: req.body,
+        include: { client: true, demandes: true, vehicules: true }
+      });
+      res.json(dossier);
+    } catch (e) {
+      console.error('PUT /api/fraise/dossiers/:id ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  // FRAISE DEMANDES
+  app.get('/api/fraise/demandes', async (req, res) => {
+    try {
+      const { dossierId } = req.query;
+      const where = dossierId ? { dossierId } : {};
+      const demandes = await prisma.fraiseDemande.findMany({
+        where,
+        include: { dossier: { include: { client: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(demandes);
+    } catch (e) {
+      console.error('GET /api/fraise/demandes ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/fraise/demandes', async (req, res) => {
+    try {
+      const { dossierId, titre, description, type, montant } = req.body;
+      const lastDemande = await prisma.fraiseDemande.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { reference: true }
+      });
+      const reference = `DEM-${new Date().getFullYear()}-${String(parseInt(lastDemande?.reference?.split('-')[2] || '0') + 1).padStart(3, '0')}`;
+      
+      const demande = await prisma.fraiseDemande.create({
+        data: { dossierId, titre, description, type: type || 'Devis', montant, reference },
+        include: { dossier: true }
+      });
+      res.status(201).json(demande);
+    } catch (e) {
+      console.error('POST /api/fraise/demandes ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.put('/api/fraise/demandes/:id', async (req, res) => {
+    try {
+      const demande = await prisma.fraiseDemande.update({
+        where: { id: req.params.id },
+        data: req.body,
+      });
+      res.json(demande);
+    } catch (e) {
+      console.error('PUT /api/fraise/demandes/:id ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  // FRAISE VEHICULES
+  app.get('/api/fraise/vehicules', async (req, res) => {
+    try {
+      const { dossierId } = req.query;
+      const where = dossierId ? { dossierId } : {};
+      const vehicules = await prisma.fraiseVehicule.findMany({
+        where,
+        include: { dossier: { include: { client: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(vehicules);
+    } catch (e) {
+      console.error('GET /api/fraise/vehicules ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/fraise/vehicules', async (req, res) => {
+    try {
+      const { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes } = req.body;
+      const vehicule = await prisma.fraiseVehicule.create({
+        data: { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes },
+        include: { dossier: true }
+      });
+      res.status(201).json(vehicule);
+    } catch (e) {
+      console.error('POST /api/fraise/vehicules ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.put('/api/fraise/vehicules/:id', async (req, res) => {
+    try {
+      const vehicule = await prisma.fraiseVehicule.update({
+        where: { id: req.params.id },
+        data: req.body,
+      });
+      res.json(vehicule);
+    } catch (e) {
+      console.error('PUT /api/fraise/vehicules/:id ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  // FRAISE TRANSACTIONS
+  app.get('/api/fraise/transactions', async (req, res) => {
+    try {
+      const { dossierId, clientId } = req.query;
+      const where = {};
+      if (dossierId) where.dossierId = dossierId;
+      if (clientId) where.clientId = clientId;
+      
+      const transactions = await prisma.fraiseTransaction.findMany({
+        where,
+        include: { dossier: true, client: true, demande: true },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(transactions);
+    } catch (e) {
+      console.error('GET /api/fraise/transactions ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/fraise/transactions', async (req, res) => {
+    try {
+      const { dossierId, clientId, demandeId, type, montant, devise, methode, reference, notes } = req.body;
+      const transaction = await prisma.fraiseTransaction.create({
+        data: { dossierId, clientId, demandeId: demandeId || null, type, montant, devise: devise || 'EUR', methode, reference, notes },
+        include: { dossier: true, client: true }
+      });
+      res.status(201).json(transaction);
+    } catch (e) {
+      console.error('POST /api/fraise/transactions ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.put('/api/fraise/transactions/:id', async (req, res) => {
+    try {
+      const transaction = await prisma.fraiseTransaction.update({
+        where: { id: req.params.id },
+        data: req.body,
+      });
+      res.json(transaction);
+    } catch (e) {
+      console.error('PUT /api/fraise/transactions/:id ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  // FRAISE STATS
+  app.get('/api/fraise/stats', async (req, res) => {
+    try {
+      const totalClients = await prisma.fraiseClient.count();
+      const totalDossiers = await prisma.fraiseDossier.count();
+      const dossierOuverts = await prisma.fraiseDossier.count({ where: { statut: 'Ouvert' } });
+      const totalVehicules = await prisma.fraiseVehicule.count();
+      const totalTransactions = await prisma.fraiseTransaction.aggregate({ _sum: { montant: true } });
+      
+      res.json({
+        totalClients,
+        totalDossiers,
+        dossierOuverts,
+        totalVehicules,
+        montantTotal: totalTransactions._sum.montant || 0,
+        transactionsEnAttente: await prisma.fraiseTransaction.count({ where: { statut: 'En attente' } })
+      });
+    } catch (e) {
+      console.error('GET /api/fraise/stats ERROR ->', e);
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
   console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
   const server = app.listen(PORT, HOST, () => {
     console.log(`🚀 TC Outil - API running on http://${HOST}:${PORT}`);
@@ -2977,272 +3243,6 @@ async function startServer() {
     console.log('SIGTERM received, shutting down gracefully...');
     server.close(() => {
       console.log('Server closed');
-// ==================== FRAISE ENDPOINTS ====================
-
-// FRAISE CLIENTS
-app.get('/api/fraise/clients', async (req, res) => {
-  try {
-    const clients = await prisma.fraiseClient.findMany({
-      include: { 
-        dossiers: { where: { statut: { not: 'Clôturé' } } },
-        _count: { select: { dossiers: true, transactions: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(clients);
-  } catch (e) {
-    console.error('GET /api/fraise/clients ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.post('/api/fraise/clients', async (req, res) => {
-  try {
-    const { nom, prenom, email, telephone, adresse, codePostal, ville, pays, siret, typeClient } = req.body;
-    const client = await prisma.fraiseClient.create({
-      data: { nom, prenom, email, telephone, adresse, codePostal, ville, pays, siret, typeClient: typeClient || 'Particulier' },
-    });
-    res.status(201).json(client);
-  } catch (e) {
-    console.error('POST /api/fraise/clients ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.put('/api/fraise/clients/:id', async (req, res) => {
-  try {
-    const client = await prisma.fraiseClient.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(client);
-  } catch (e) {
-    console.error('PUT /api/fraise/clients/:id ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-// FRAISE DOSSIERS
-app.get('/api/fraise/dossiers', async (req, res) => {
-  try {
-    const { clientId } = req.query;
-    const where = clientId ? { clientId } : {};
-    const dossiers = await prisma.fraiseDossier.findMany({
-      where,
-      include: { 
-        client: true,
-        demandes: { where: { statut: { not: 'Rejeté' } } },
-        vehicules: true,
-        _count: { select: { demandes: true, vehicules: true, transactions: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(dossiers);
-  } catch (e) {
-    console.error('GET /api/fraise/dossiers ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.post('/api/fraise/dossiers', async (req, res) => {
-  try {
-    const { clientId, titre, description, type, montantTotal } = req.body;
-    // Générer numéro de dossier unique
-    const lastDossier = await prisma.fraiseDossier.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { numero: true }
-    });
-    const numero = `FRAISE-${new Date().getFullYear()}-${String(parseInt(lastDossier?.numero?.split('-')[2] || '0') + 1).padStart(3, '0')}`;
-    
-    const dossier = await prisma.fraiseDossier.create({
-      data: { clientId, titre, description, type: type || 'Achat', numero, montantTotal: montantTotal || 0 },
-      include: { client: true }
-    });
-    res.status(201).json(dossier);
-  } catch (e) {
-    console.error('POST /api/fraise/dossiers ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.put('/api/fraise/dossiers/:id', async (req, res) => {
-  try {
-    const dossier = await prisma.fraiseDossier.update({
-      where: { id: req.params.id },
-      data: req.body,
-      include: { client: true, demandes: true, vehicules: true }
-    });
-    res.json(dossier);
-  } catch (e) {
-    console.error('PUT /api/fraise/dossiers/:id ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-// FRAISE DEMANDES
-app.get('/api/fraise/demandes', async (req, res) => {
-  try {
-    const { dossierId } = req.query;
-    const where = dossierId ? { dossierId } : {};
-    const demandes = await prisma.fraiseDemande.findMany({
-      where,
-      include: { dossier: { include: { client: true } } },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(demandes);
-  } catch (e) {
-    console.error('GET /api/fraise/demandes ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.post('/api/fraise/demandes', async (req, res) => {
-  try {
-    const { dossierId, titre, description, type, montant } = req.body;
-    const lastDemande = await prisma.fraiseDemande.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { reference: true }
-    });
-    const reference = `DEM-${new Date().getFullYear()}-${String(parseInt(lastDemande?.reference?.split('-')[2] || '0') + 1).padStart(3, '0')}`;
-    
-    const demande = await prisma.fraiseDemande.create({
-      data: { dossierId, titre, description, type: type || 'Devis', montant, reference },
-      include: { dossier: true }
-    });
-    res.status(201).json(demande);
-  } catch (e) {
-    console.error('POST /api/fraise/demandes ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.put('/api/fraise/demandes/:id', async (req, res) => {
-  try {
-    const demande = await prisma.fraiseDemande.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(demande);
-  } catch (e) {
-    console.error('PUT /api/fraise/demandes/:id ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-// FRAISE VEHICULES
-app.get('/api/fraise/vehicules', async (req, res) => {
-  try {
-    const { dossierId } = req.query;
-    const where = dossierId ? { dossierId } : {};
-    const vehicules = await prisma.fraiseVehicule.findMany({
-      where,
-      include: { dossier: { include: { client: true } } },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(vehicules);
-  } catch (e) {
-    console.error('GET /api/fraise/vehicules ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.post('/api/fraise/vehicules', async (req, res) => {
-  try {
-    const { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes } = req.body;
-    const vehicule = await prisma.fraiseVehicule.create({
-      data: { dossierId, immatriculation, marque, modele, annee, kilometre, vin, carburant, boite, couleur, etat, prixAchat, prixVente, notes },
-      include: { dossier: true }
-    });
-    res.status(201).json(vehicule);
-  } catch (e) {
-    console.error('POST /api/fraise/vehicules ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.put('/api/fraise/vehicules/:id', async (req, res) => {
-  try {
-    const vehicule = await prisma.fraiseVehicule.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(vehicule);
-  } catch (e) {
-    console.error('PUT /api/fraise/vehicules/:id ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-// FRAISE TRANSACTIONS
-app.get('/api/fraise/transactions', async (req, res) => {
-  try {
-    const { dossierId, clientId } = req.query;
-    const where = {};
-    if (dossierId) where.dossierId = dossierId;
-    if (clientId) where.clientId = clientId;
-    
-    const transactions = await prisma.fraiseTransaction.findMany({
-      where,
-      include: { dossier: true, client: true, demande: true },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(transactions);
-  } catch (e) {
-    console.error('GET /api/fraise/transactions ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.post('/api/fraise/transactions', async (req, res) => {
-  try {
-    const { dossierId, clientId, demandeId, type, montant, devise, methode, reference, notes } = req.body;
-    const transaction = await prisma.fraiseTransaction.create({
-      data: { dossierId, clientId, demandeId: demandeId || null, type, montant, devise: devise || 'EUR', methode, reference, notes },
-      include: { dossier: true, client: true }
-    });
-    res.status(201).json(transaction);
-  } catch (e) {
-    console.error('POST /api/fraise/transactions ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-app.put('/api/fraise/transactions/:id', async (req, res) => {
-  try {
-    const transaction = await prisma.fraiseTransaction.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(transaction);
-  } catch (e) {
-    console.error('PUT /api/fraise/transactions/:id ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
-// FRAISE STATS
-app.get('/api/fraise/stats', async (req, res) => {
-  try {
-    const totalClients = await prisma.fraiseClient.count();
-    const totalDossiers = await prisma.fraiseDossier.count();
-    const dossierOuverts = await prisma.fraiseDossier.count({ where: { statut: 'Ouvert' } });
-    const totalVehicules = await prisma.fraiseVehicule.count();
-    const totalTransactions = await prisma.fraiseTransaction.aggregate({ _sum: { montant: true } });
-    
-    res.json({
-      totalClients,
-      totalDossiers,
-      dossierOuverts,
-      totalVehicules,
-      montantTotal: totalTransactions._sum.montant || 0,
-      transactionsEnAttente: await prisma.fraiseTransaction.count({ where: { statut: 'En attente' } })
-    });
-  } catch (e) {
-    console.error('GET /api/fraise/stats ERROR ->', e);
-    res.status(400).json({ error: String(e) });
-  }
-});
-
       prisma.$disconnect().then(() => process.exit(0));
     });
   });
