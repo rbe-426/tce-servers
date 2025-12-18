@@ -196,20 +196,27 @@ app.get('/api/stats', async (_req, res) => {
     const tomorrowDate = new Date(todayDate);
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
 
+    // Dates for current month
+    const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+
     const [
       totalServices,
       totalConductors,
       totalVehicles,
       todayServices,
       todayPlanned,
-      todayCompleted
+      todayCompleted,
+      monthPlanned
     ] = await Promise.all([
       prisma.service.count(),
       prisma.conducteur.count(),
       prisma.vehicle.count(),
       prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate } } }),
       prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Planifiée' } }),
-      prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Terminée' } })
+      prisma.service.count({ where: { date: { gte: todayDate, lt: tomorrowDate }, statut: 'Terminée' } }),
+      prisma.service.count({ where: { date: { gte: monthStart, lte: monthEnd }, statut: 'Planifiée' } })
     ]);
 
     res.json({
@@ -218,7 +225,8 @@ app.get('/api/stats', async (_req, res) => {
       totalVehicles,
       todayServices,
       todayPlanned,
-      todayCompleted
+      todayCompleted,
+      monthPlanned
     });
   } catch (e) {
     res.status(500).json({ error: String(e.message) });
