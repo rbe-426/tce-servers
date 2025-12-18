@@ -219,6 +219,8 @@ model Service {
   conducteurId    String?  // nullable - service peut ne pas avoir conducteur attribué
   conducteur      Conducteur? @relation(fields: [conducteurId], references: [id], onDelete: SetNull)
   
+  vehiculeAssigne String?  // Parc de l'autobus assigné (ex: "TC-0001")
+  
   date            DateTime
   heureDebut      String   // "06:30"
   heureFin        String   // "18:45"

@@ -1325,13 +1325,16 @@ app.get('/api/pointages/stats/daily', async (req, res) => {
       byReason: {}
     };
 
-    // Motifs possibles
+    // Motifs possibles - doit correspondre à ceux du frontend
     const possibleMotifs = [
-      'Absence',
-      'Refus pointage',
-      'Refus permis/CNI',
-      'Absence véhicule',
-      'Absence conducteur'
+      'RETARD CR',
+      'REFUS POINTAGE',
+      'REFUS CNI/PERMIS',
+      'ABSENCE VEHICULE',
+      'ABSENCE CONDUCTEUR',
+      'DROIT DE RETRAIT CONDUCTEUR',
+      'GREVE NON AUTORISEE',
+      'GREVE AUTORISEE'
     ];
 
     possibleMotifs.forEach(motif => {
@@ -1417,6 +1420,16 @@ app.post('/api/pointages', async (req, res) => {
       data: payload,
       include: { service: { include: { ligne: true, conducteur: true } }, conducteur: true },
     });
+
+    // Détecter si le service est pointé en retard
+    if (b.isLate) {
+      console.log(`[POINTAGE] Service retardé: ${updatedService.ligne?.numero} à ${updatedService.heureDebut}`);
+      // Enregistrer le retard dans les notes du conducteur ou l'historique
+      if (b.lateMinutes) {
+        const conducteur = pointage.conducteur;
+        console.log(`[RETARD] ${conducteur.prenom} ${conducteur.nom} - Retard: ${b.lateMinutes} minutes`);
+      }
+    }
 
     res.status(201).json(pointage);
   } catch (e) {
