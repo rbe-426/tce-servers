@@ -2,6 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
+import { VEHICLE_TYPES, VEHICLE_LINES_ELIGIBILITY } from './vehicleTypes.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);
@@ -226,33 +227,26 @@ app.get('/api/diagnostic', async (_req, res) => {
 
 // ========== VEHICLES ==========
 
-// Configuration des véhicules éligibles par ligne
-const VEHICLE_LINES_ELIGIBILITY = {
-  '4201': ['Standard', 'Standard BHNS', 'Articulé', 'Articulé BHNS'],
-  '4202': ['Standard', 'Standard BHNS'],
-  '4203': ['Articulé', 'Articulé BHNS', 'Standard', 'Standard BHNS'],
-  '4204': ['Standard', 'Standard BHNS'],
-  '4205': ['Standard', 'Standard BHNS'],
-  '4206': ['Articulé', 'Articulé BHNS'],
-  '4212': ['Standard', 'Standard BHNS'],
-  '4213': ['Standard', 'Standard BHNS'],
-  'N139': ['Autocar'],
-};
+// Configuration imported from vehicleTypes.js
+// VEHICLE_TYPES - All available vehicle types
+// VEHICLE_LINES_ELIGIBILITY - Vehicle eligibility by line
 
 // GET all vehicle types available
 app.get('/api/vehicle-types', async (_req, res) => {
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      select: { type: true },
-      distinct: ['type'],
-    });
-    const types = vehicles
-      .map(v => v.type)
-      .filter(t => t && t.trim() !== '')
-      .sort();
-    res.json({ types });
+    res.json({ types: VEHICLE_TYPES });
   } catch (e) {
     console.error('GET /api/vehicle-types ERROR ->', e.message);
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
+// GET vehicle eligibility configuration by line
+app.get('/api/vehicle-lines-eligibility', async (_req, res) => {
+  try {
+    res.json(VEHICLE_LINES_ELIGIBILITY);
+  } catch (e) {
+    console.error('GET /api/vehicle-lines-eligibility ERROR ->', e.message);
     res.status(500).json({ error: String(e.message) });
   }
 });
