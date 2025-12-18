@@ -951,31 +951,22 @@ app.post('/api/lignes', async (req, res) => {
     };
 
     const ligne = await prisma.ligne.create({ 
-      data: payload,
-      include: { sens: { include: { services: true } } }
+      data: payload
     });
 
     // Créer un sens par défaut "Aller" si la ligne n'en a pas
-    if (!ligne.sens || ligne.sens.length === 0) {
-      const defaultSens = await prisma.sens.create({
-        data: {
-          ligneId: ligne.id,
-          nom: 'Aller',
-          direction: 'Aller',
-          statut: 'Actif',
-          ordre: 1,
-        },
-      });
-      
-      // Retourner la ligne avec le nouveau sens inclus
-      const updatedLigne = await prisma.ligne.findUnique({
-        where: { id: ligne.id },
-        include: { sens: { include: { services: true } } },
-      });
-      
-      return res.status(201).json(updatedLigne);
-    }
-
+    // (Note: une nouvelle ligne n'aura pas de sens, donc on en crée un)
+    const defaultSens = await prisma.sens.create({
+      data: {
+        ligneId: ligne.id,
+        nom: 'Aller',
+        direction: 'Aller',
+        statut: 'Actif',
+        ordre: 1,
+      },
+    });
+    
+    // Retourner la ligne sans les sens inclus (le frontend les récupère via /api/lignes)
     res.status(201).json(ligne);
   } catch (e) {
     console.error('POST /api/lignes ERROR ->', e);
@@ -1002,8 +993,7 @@ app.put('/api/lignes/:id', async (req, res) => {
 
     const ligne = await prisma.ligne.update({ 
       where: { id: req.params.id }, 
-      data,
-      include: { sens: { include: { services: { orderBy: { heureDebut: 'asc' } } }, orderBy: { ordre: 'asc' } } }
+      data
     });
     res.json(ligne);
   } catch (e) {
