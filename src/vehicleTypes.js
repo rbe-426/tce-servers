@@ -27,5 +27,5 @@ export const VEHICLE_LINES_ELIGIBILITY = {
   '4206': ['TCP - Autobus articulé', 'TCP - Autobus articulé BHNS'],
   '4212': ['TCP - Autobus Standard', 'TCP - Autobus Standard BHNS'],
   '4213': ['TCP - Autobus Standard', 'TCP - Autobus Standard BHNS'],
-  'N139': ['TCP - Autocars BC/NOC/EXPRESS'],
+  'N139': ['TCP - Autobus Standard', 'TCP - Autobus Standard BHNS'],
 };
