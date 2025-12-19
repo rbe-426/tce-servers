@@ -300,7 +300,25 @@ app.get('/api/vehicle-lines-eligibility', async (_req, res) => {
 app.get('/api/vehicles/eligible/:ligne', async (req, res) => {
   try {
     const { ligne } = req.params;
-    const eligibleTypes = VEHICLE_LINES_ELIGIBILITY[ligne] || [];
+    
+    // Chercher la ligne en BD
+    const ligneData = await prisma.ligne.findUnique({
+      where: { numero: ligne }
+    });
+    
+    if (!ligneData) {
+      return res.json({ ligne, eligibleTypes: [], vehicles: [], message: 'Ligne introuvable' });
+    }
+    
+    // Récupérer les types depuis la BD
+    let eligibleTypes = [];
+    if (ligneData.typesVehicules) {
+      try {
+        eligibleTypes = JSON.parse(ligneData.typesVehicules);
+      } catch (e) {
+        console.warn(`Erreur parsing typesVehicules pour ${ligne}:`, e.message);
+      }
+    }
     
     if (eligibleTypes.length === 0) {
       return res.json({ ligne, eligibleTypes: [], vehicles: [], message: 'Aucun type de véhicule défini pour cette ligne' });
