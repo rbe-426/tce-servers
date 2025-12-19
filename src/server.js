@@ -1993,7 +1993,16 @@ app.put('/api/services-hierarchie/:id', async (req, res) => {
       heureFin: b.heureFin ?? undefined,
       conducteurId: b.conducteurId ?? undefined,
       statut: b.statut ?? undefined,
+      vehiculeAssigne: b.vehiculeAssigne ?? undefined,
     };
+
+    // Si on assigne un véhicule, mettre à jour son statut à "Affecté"
+    if (b.vehiculeAssigne) {
+      await prisma.vehicle.update({
+        where: { parc: b.vehiculeAssigne },
+        data: { statut: 'Affecté' }
+      });
+    }
 
     const service = await prisma.service.update({ 
       where: { id: req.params.id }, 
