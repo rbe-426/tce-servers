@@ -11,65 +11,478 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // ==================== DONNÉES À IMPORTER ====================
-// ✅ IMPORTANT :
-// - numero DOIT être unique côté "ligne" (upsert)
-// - sens[].jours contrôle les dates générées (Semaine/Samedi/Dimanche)
-// - services = plages (service exploitation), PAS “1 départ = 1 course”
 const LIGNES_DATA = [
-  // Exemple (N139 noctilien) — tu peux le laisser ou l’enlever
   {
-    numero: "N139",
-    nom: "NOCTILIEN_N139",
-    type: "autobus",
-    heureDebut: "00h10",
-    heureFin: "07h16",
-    sens: [
+    "numero": "4201",
+    "nom": "LIGNE_4201",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h45",
+    "heureFin": "23h19",
+    "sens": [
       {
-        nom: "Semaine Aller",
-        jours: "L; M; M; J; V",
-        direction:
-          "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "01h35", heureFin: "07h16" }]
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
+        "services": [
+          { "heureDebut": "05h45", "heureFin": "10h11" },
+          { "heureDebut": "12h00", "heureFin": "17h55" },
+          { "heureDebut": "20h50", "heureFin": "23h19" }
+        ]
       },
       {
-        nom: "Semaine Retour",
-        jours: "L; M; M; J; V",
-        direction:
-          "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "00h10", heureFin: "05h56" }]
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "05h52", "heureFin": "06h41" },
+          { "heureDebut": "09h21", "heureFin": "12h11" },
+          { "heureDebut": "15h10", "heureFin": "21h31" }
+        ]
       },
       {
-        nom: "Samedi Aller",
-        jours: "S",
-        direction:
-          "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "01h35", heureFin: "07h16" }]
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
+        "services": [
+          { "heureDebut": "06h38", "heureFin": "11h48" },
+          { "heureDebut": "14h29", "heureFin": "18h21" },
+          { "heureDebut": "20h50", "heureFin": "23h19" }
+        ]
       },
       {
-        nom: "Samedi Retour",
-        jours: "S",
-        direction:
-          "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "00h10", heureFin: "05h56" }]
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "07h21", "heureFin": "11h11" },
+          { "heureDebut": "14h21", "heureFin": "19h31" },
+          { "heureDebut": "21h31", "heureFin": "21h31" }
+        ]
       },
       {
-        nom: "Dimanche & fériés Aller",
-        jours: "D",
-        direction:
-          "Paris (Gare de Lyon - Diderot) → Corbeil-Essonnes (Gare Henri Barbusse) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "01h35", heureFin: "07h16" }]
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
+        "services": [
+          { "heureDebut": "07h35", "heureFin": "12h48" },
+          { "heureDebut": "14h29", "heureFin": "19h41" },
+          { "heureDebut": "20h53", "heureFin": "23h19" }
+        ]
       },
       {
-        nom: "Dimanche & fériés Retour",
-        jours: "D",
-        direction:
-          "Corbeil-Essonnes (Gare Henri Barbusse) → Paris (Gare de Lyon - Diderot) | CARTE CHRONO EXIGÉE",
-        services: [{ heureDebut: "00h10", heureFin: "05h56" }]
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
+        "services": [
+          { "heureDebut": "07h41", "heureFin": "12h11" },
+          { "heureDebut": "15h10", "heureFin": "20h30" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4202",
+    "nom": "LIGNE_4202",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "04h43",
+    "heureFin": "22h44",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de Corbeil-Essonnes → ...",
+        "services": [
+          { "heureDebut": "04h43", "heureFin": "10h05" },
+          { "heureDebut": "12h03", "heureFin": "16h50" },
+          { "heureDebut": "18h44", "heureFin": "22h44" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de Corbeil-Essonnes",
+        "services": [
+          { "heureDebut": "05h23", "heureFin": "10h14" },
+          { "heureDebut": "12h23", "heureFin": "16h44" },
+          { "heureDebut": "18h23", "heureFin": "22h23" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de Corbeil-Essonnes → ...",
+        "services": [
+          { "heureDebut": "06h03", "heureFin": "12h05" },
+          { "heureDebut": "14h03", "heureFin": "20h05" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "... → Gare de Corbeil-Essonnes",
+        "services": [
+          { "heureDebut": "06h23", "heureFin": "12h23" },
+          { "heureDebut": "14h23", "heureFin": "20h23" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de Corbeil-Essonnes → ...",
+        "services": [
+          { "heureDebut": "07h03", "heureFin": "13h05" },
+          { "heureDebut": "15h03", "heureFin": "21h05" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "... → Gare de Corbeil-Essonnes",
+        "services": [
+          { "heureDebut": "07h23", "heureFin": "13h23" },
+          { "heureDebut": "15h23", "heureFin": "21h23" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4203",
+    "nom": "LIGNE_4203",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h53",
+    "heureFin": "00h53",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "05h53", "heureFin": "10h53" },
+          { "heureDebut": "12h53", "heureFin": "17h53" },
+          { "heureDebut": "19h53", "heureFin": "00h53" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "06h03", "heureFin": "11h03" },
+          { "heureDebut": "13h03", "heureFin": "18h03" },
+          { "heureDebut": "20h03", "heureFin": "00h03" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "07h53", "heureFin": "12h53" },
+          { "heureDebut": "14h53", "heureFin": "19h53" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "08h03", "heureFin": "13h03" },
+          { "heureDebut": "15h03", "heureFin": "20h03" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "08h53", "heureFin": "13h53" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "09h03", "heureFin": "14h03" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4205",
+    "nom": "LIGNE_4205",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h19",
+    "heureFin": "00h28",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "05h19", "heureFin": "10h28" },
+          { "heureDebut": "12h19", "heureFin": "17h28" },
+          { "heureDebut": "19h19", "heureFin": "00h28" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "05h28", "heureFin": "10h19" },
+          { "heureDebut": "12h28", "heureFin": "17h19" },
+          { "heureDebut": "19h28", "heureFin": "00h19" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "06h19", "heureFin": "12h28" },
+          { "heureDebut": "14h19", "heureFin": "20h28" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "06h28", "heureFin": "12h19" },
+          { "heureDebut": "14h28", "heureFin": "20h19" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "07h19", "heureFin": "13h28" },
+          { "heureDebut": "15h19", "heureFin": "21h28" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "07h28", "heureFin": "13h19" },
+          { "heureDebut": "15h28", "heureFin": "21h19" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4206",
+    "nom": "LIGNE_4206",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h15",
+    "heureFin": "21h07",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "05h15", "heureFin": "10h07" },
+          { "heureDebut": "12h15", "heureFin": "17h07" },
+          { "heureDebut": "18h15", "heureFin": "21h07" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "05h25", "heureFin": "10h15" },
+          { "heureDebut": "12h25", "heureFin": "17h15" },
+          { "heureDebut": "18h25", "heureFin": "21h05" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "06h15", "heureFin": "12h07" },
+          { "heureDebut": "14h15", "heureFin": "20h07" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "06h25", "heureFin": "12h15" },
+          { "heureDebut": "14h25", "heureFin": "20h05" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "07h15", "heureFin": "13h07" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "07h25", "heureFin": "13h05" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4212",
+    "nom": "LIGNE_4212",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "05h59",
+    "heureFin": "23h25",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "05h59", "heureFin": "10h25" },
+          { "heureDebut": "12h59", "heureFin": "17h25" },
+          { "heureDebut": "19h59", "heureFin": "23h25" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "06h10", "heureFin": "10h59" },
+          { "heureDebut": "13h10", "heureFin": "17h59" },
+          { "heureDebut": "20h10", "heureFin": "23h10" }
+        ]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "07h59", "heureFin": "13h25" },
+          { "heureDebut": "15h59", "heureFin": "21h25" }
+        ]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "08h10", "heureFin": "13h10" },
+          { "heureDebut": "16h10", "heureFin": "21h10" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "08h59", "heureFin": "14h25" }
+        ]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "09h10", "heureFin": "14h10" }
+        ]
+      }
+    ]
+  },
+  {
+    "numero": "4213",
+    "nom": "LIGNE_4213",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h58",
+    "heureFin": "18h01",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Gare de ... → ...",
+        "services": [
+          { "heureDebut": "06h58", "heureFin": "12h01" },
+          { "heureDebut": "13h58", "heureFin": "18h01" }
+        ]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "... → Gare de ...",
+        "services": [
+          { "heureDebut": "07h10", "heureFin": "12h10" },
+          { "heureDebut": "14h10", "heureFin": "18h10" }
+        ]
+      },
+      { "nom": "Samedi Aller", "jours": "S", "direction": "Gare de ... → ...", "services": [] },
+      { "nom": "Samedi Retour", "jours": "S", "direction": "... → Gare de ...", "services": [] },
+      { "nom": "Dimanche & fériés Aller", "jours": "D", "direction": "Gare de ... → ...", "services": [] },
+      { "nom": "Dimanche & fériés Retour", "jours": "D", "direction": "... → Gare de ...", "services": [] }
+    ]
+  },
+  {
+    "numero": "N139",
+    "nom": "NOCTILIEN_N139",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "00h10",
+    "heureFin": "07h16",
+    "sens": [
+      {
+        "nom": "Semaine Aller",
+        "jours": "L; M; M; J; V",
+        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
+        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
+      },
+      {
+        "nom": "Semaine Retour",
+        "jours": "L; M; M; J; V",
+        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
+        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
+      },
+      {
+        "nom": "Samedi Aller",
+        "jours": "S",
+        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
+        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
+      },
+      {
+        "nom": "Samedi Retour",
+        "jours": "S",
+        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
+        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
+      },
+      {
+        "nom": "Dimanche & fériés Aller",
+        "jours": "D",
+        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
+        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
+      },
+      {
+        "nom": "Dimanche & fériés Retour",
+        "jours": "D",
+        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
+        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
       }
     ]
   }
-
-  // TODO: Ajoute ici 4201, 4202, 4203, 4205, 4206, 4212, 4213…
 ];
 
 // ==================== HELPERS ====================
