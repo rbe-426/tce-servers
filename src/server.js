@@ -3987,23 +3987,6 @@ async function startServer() {
       res.status(500).json({ error: String(e.message) });
     }
   });
-
-  console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
-  const server = app.listen(PORT, HOST, () => {
-    console.log(`🚀 TC Outil - API running on http://${HOST}:${PORT}`);
-    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📝 NODE_ENV=${process.env.NODE_ENV}`);
-    console.log(`🔌 PORT=${PORT}`);
-  });
-
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    server.close(() => {
-      console.log('Server closed');
-      prisma.$disconnect().then(() => process.exit(0));
-    });
-  });
 }
 
 // ============ NOTIFICATIONS / DIFFUSION INFORMATIONS ============
