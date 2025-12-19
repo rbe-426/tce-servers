@@ -3856,6 +3856,7 @@ app.get('/api/notifications', async (_req, res) => {
   console.log('[API] GET /api/notifications called');
   try {
     const now = new Date();
+    console.log('[API] NOW:', now.toISOString());
     const notifications = await prisma.notification.findMany({
       where: {
         actif: true,
@@ -3866,6 +3867,10 @@ app.get('/api/notifications', async (_req, res) => {
         ]
       },
       orderBy: { createdAt: 'desc' },
+    });
+    console.log('[API] GET /api/notifications - Found:', notifications.length, 'notifications');
+    notifications.forEach(n => {
+      console.log(`  - ${n.id}: ${n.titre} (type: ${n.type}, actif: ${n.actif}, dateDebut: ${n.dateDebut.toISOString()}, dateFin: ${n.dateFin ? n.dateFin.toISOString() : 'null'})`);
     });
     res.json(notifications);
   } catch (error) {
@@ -3901,6 +3906,17 @@ app.post('/api/notifications', async (req, res) => {
         dateFin: dateFin ? new Date(dateFin) : null,
         createdBy: req.user?.email || 'système',
       }
+    });
+    
+    console.log('[API] POST /api/notifications - Created notification:', {
+      id: notification.id,
+      type: notification.type,
+      titre: notification.titre,
+      message: notification.message,
+      actif: notification.actif,
+      dateDebut: notification.dateDebut.toISOString(),
+      dateFin: notification.dateFin ? notification.dateFin.toISOString() : null,
+      createdAt: notification.createdAt.toISOString(),
     });
     
     res.status(201).json(notification);
