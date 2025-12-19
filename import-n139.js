@@ -11,12 +11,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // ==================== DONNÉES À IMPORTER ====================
-// ✅ IMPORTANT :
-// - numero DOIT être unique côté "ligne" (upsert)
-// - sens[].jours contrôle les dates générées (Semaine/Samedi/Dimanche)
-// - services = plages (service exploitation), PAS “1 départ = 1 course”
 const LIGNES_DATA = [
-  // Exemple (N139 noctilien) — tu peux le laisser ou l’enlever
   {
     numero: "N139",
     nom: "NOCTILIEN_N139",
@@ -68,13 +63,10 @@ const LIGNES_DATA = [
       }
     ]
   }
-
-  // TODO: Ajoute ici 4201, 4202, 4203, 4205, 4206, 4212, 4213…
 ];
 
 // ==================== HELPERS ====================
 
-/** "06h30" -> "06:30" */
 function parseHeure(heureStr) {
   if (!heureStr) return null;
   const m = String(heureStr).trim().match(/^(\d{1,2})h(\d{2})$/i);
@@ -84,10 +76,6 @@ function parseHeure(heureStr) {
   return `${hh}:${mm}`;
 }
 
-/**
- * Jours: "L; M; M; J; V" (2 M = mardi + mercredi)
- * "S" samedi, "D" dimanche
- */
 function parseJours(joursStr) {
   const jours = {
     lundi: false,
@@ -113,7 +101,6 @@ function parseJours(joursStr) {
       if (mCount === 1) jours.mardi = true;
       else if (mCount === 2) jours.mercredi = true;
       else {
-        // si jamais on a 3e M par erreur, on active mardi+mercredi quand même
         jours.mardi = true;
         jours.mercredi = true;
       }
@@ -126,28 +113,33 @@ function parseJours(joursStr) {
   return jours;
 }
 
-/**
- * Génère les dates de service pour la semaine courante (lundi -> dimanche)
- * en fonction du calendrier booléen.
- */
 function generateServiceDates(calendrier) {
   const dates = [];
+  
+  // On génère pour toute la semaine courante (lundi-dimanche)
   const today = new Date();
+  const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const todayDayOfWeek = todayUTC.getUTCDay(); // 0=dim, 1=lun, ..., 6=sam
+  
+  // Début de semaine = lundi de cette semaine
+  const daysToMonday = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
+  const mondayUTC = new Date(Date.UTC(
+    todayUTC.getUTCFullYear(),
+    todayUTC.getUTCMonth(),
+    todayUTC.getUTCDate() - daysToMonday
+  ));
 
-  const dayOfWeek = today.getDay(); // 0=dimanche ... 6=samedi
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday);
-  monday.setHours(0, 0, 0, 0);
-
+  // Jours dans l'ordre lundi-dimanche
   const order = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
   for (let i = 0; i < 7; i++) {
-    const k = order[i];
-    if (calendrier[k]) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
+    const dayName = order[i];
+    if (calendrier[dayName]) {
+      const d = new Date(Date.UTC(
+        mondayUTC.getUTCFullYear(),
+        mondayUTC.getUTCMonth(),
+        mondayUTC.getUTCDate() + i
+      ));
       dates.push(d);
     }
   }
@@ -187,7 +179,6 @@ async function importLignes() {
         const hDeb = parseHeure(ligneData.heureDebut);
         const hFin = parseHeure(ligneData.heureFin);
 
-        // 1) upsert ligne (1 record par numero)
         const ligne = await prisma.ligne.upsert({
           where: { numero: ligneData.numero },
           create: {
@@ -196,7 +187,6 @@ async function importLignes() {
             typesVehicules: JSON.stringify([ligneData.type]),
             heureDebut: hDeb,
             heureFin: hFin,
-            // calendrierJson global optionnel : on met "tous jours" par défaut
             calendrierJson: JSON.stringify({
               lundi: true,
               mardi: true,
@@ -219,14 +209,12 @@ async function importLignes() {
 
         totalLignes++;
 
-        // 2) upsert sens + création services
         for (const sensData of ligneData.sens || []) {
           if (!sensData.nom) throw new Error(`Sens sans nom sur ${ligneData.numero}`);
           if (!sensData.jours) throw new Error(`Sens ${sensData.nom} sans jours sur ${ligneData.numero}`);
 
           const sens = await prisma.sens.upsert({
             where: {
-              // IMPORTANT: ton unique (ligneId, nom) doit exister en Prisma
               ligneId_nom: { ligneId: ligne.id, nom: sensData.nom }
             },
             create: {
@@ -243,11 +231,9 @@ async function importLignes() {
 
           totalSens++;
 
-          // Dates par calendrier DU SENS
           const calendrier = parseJours(sensData.jours);
           const serviceDates = generateServiceDates(calendrier);
 
-          // 3) services
           for (const s of sensData.services || []) {
             const heureDebut = parseHeure(s.heureDebut);
             const heureFin = parseHeure(s.heureFin);
@@ -257,8 +243,8 @@ async function importLignes() {
             }
 
             for (const serviceDate of serviceDates) {
-              const dayStart = new Date(serviceDate.getFullYear(), serviceDate.getMonth(), serviceDate.getDate());
-              const dayEnd = new Date(serviceDate.getFullYear(), serviceDate.getMonth(), serviceDate.getDate() + 1);
+              const dayStart = new Date(Date.UTC(serviceDate.getUTCFullYear(), serviceDate.getUTCMonth(), serviceDate.getUTCDate()));
+              const dayEnd = new Date(Date.UTC(serviceDate.getUTCFullYear(), serviceDate.getUTCMonth(), serviceDate.getUTCDate() + 1));
 
               const existing = await prisma.service.findFirst({
                 where: {
