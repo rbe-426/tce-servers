@@ -380,6 +380,65 @@ app.get('/api/vehicles/:parc', async (req, res) => {
   }
 });
 
+// --- Interventions & Suivi Atelier ---
+// Ajouter une intervention pour un véhicule
+app.post('/api/vehicles/:parc/interventions', async (req, res) => {
+  try {
+    const { libelle, datePrevue, commentaire } = req.body;
+    const intervention = await prisma.intervention.create({
+      data: {
+        vehicleParc: req.params.parc,
+        libelle,
+        datePrevue: datePrevue ? new Date(datePrevue) : null,
+        commentaire,
+        statut: 'planifiée',
+      }
+    });
+    res.json(intervention);
+  } catch (err) {
+    console.error('[INTERVENTIONS] Error:', err);
+    res.status(500).json({ error: 'Erreur création intervention' });
+  }
+});
+
+// Mettre à jour une intervention
+app.put('/api/vehicles/:parc/interventions/:id', async (req, res) => {
+  try {
+    const { statut, dateEffective } = req.body;
+    const intervention = await prisma.intervention.update({
+      where: { id: parseInt(req.params.id) },
+      data: { 
+        statut: statut || undefined,
+        dateEffective: dateEffective ? new Date(dateEffective) : new Date()
+      }
+    });
+    res.json(intervention);
+  } catch (err) {
+    console.error('[INTERVENTIONS] Error:', err);
+    res.status(500).json({ error: 'Erreur mise à jour intervention' });
+  }
+});
+
+// Ajouter un mouvement d'état avec commentaire
+app.post('/api/vehicles/:parc/state-history', async (req, res) => {
+  try {
+    const { toStatus, note } = req.body;
+    const history = await prisma.vehicleStateHistory.create({
+      data: {
+        vehicleParc: req.params.parc,
+        fromStatus: null,
+        toStatus,
+        note: note || '',
+        changedAt: new Date(),
+      }
+    });
+    res.json(history);
+  } catch (err) {
+    console.error('[STATE-HISTORY] Error:', err);
+    res.status(500).json({ error: 'Erreur création historique' });
+  }
+});
+
 // GET vehicle history/mouvements
 app.get('/api/vehicles/:parc/history', async (req, res) => {
   try {
@@ -4259,63 +4318,6 @@ async function startServer() {
     } catch (e) {
       console.error('[ADMIN] Error:', e.message);
       res.status(500).json({ error: String(e.message) });
-    }
-  });
-
-  // --- Interventions & Suivi Atelier ---
-  // Ajouter une intervention pour un véhicule
-  app.post('/api/vehicles/:parc/interventions', async (req, res) => {
-    try {
-      const { libelle, datePrevue, commentaire } = req.body;
-      const intervention = await prisma.intervention.create({
-        data: {
-          vehicleParc: req.params.parc,
-          libelle,
-          datePrevue: datePrevue ? new Date(datePrevue) : null,
-          commentaire,
-          statut: 'planifiée',
-        }
-      });
-      res.json(intervention);
-    } catch (err) {
-      console.error('[INTERVENTIONS] Error:', err);
-      res.status(500).json({ error: 'Erreur création intervention' });
-    }
-  });
-
-  // Mettre à jour une intervention
-  app.put('/api/vehicles/:parc/interventions/:id', async (req, res) => {
-    try {
-      const { statut, dateEffective } = req.body;
-      const intervention = await prisma.intervention.update({
-        where: { id: parseInt(req.params.id) },
-        data: { 
-          statut: statut || undefined,
-          dateEffective: dateEffective ? new Date(dateEffective) : new Date()
-        }
-      });
-      res.json(intervention);
-    } catch (err) {
-      console.error('[INTERVENTIONS] Error:', err);
-      res.status(500).json({ error: 'Erreur mise à jour intervention' });
-    }
-  });
-
-  // Ajouter un mouvement d'état avec commentaire
-  app.post('/api/vehicles/:parc/state-history', async (req, res) => {
-    try {
-      const { toStatus, note } = req.body;
-      const history = await prisma.vehicleStateHistory.create({
-        data: {
-          vehicleParc: req.params.parc,
-          toStatus,
-          note
-        }
-      });
-      res.json(history);
-    } catch (err) {
-      console.error('[STATE-HISTORY] Error:', err);
-      res.status(500).json({ error: 'Erreur ajout historique' });
     }
   });
 
