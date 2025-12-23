@@ -1,8 +1,11 @@
+
 import express from 'express';
 import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
 
 const app = express();
 const PORT = process.env.PORT || 8081;
+const prisma = new PrismaClient();
 
 // CORS pour toutes les origines
 app.use(cors());
@@ -22,11 +25,38 @@ app.get('/api/today', (req, res) => {
   res.json({ today });
 });
 
-// Mock endpoints pour développement
-app.get('/api/services', (req, res) => {
-  res.json([]);
+// Endpoint réel pour les services
+app.get('/api/services', async (req, res) => {
+  try {
+    // Optionnel : filtrer par date (ex: ?date=2025-12-23)
+    const { date } = req.query;
+    let where = {};
+    if (date) {
+      where = {
+        date: {
+          gte: new Date(date + 'T00:00:00Z'),
+          lt: new Date(date + 'T23:59:59Z')
+        }
+      };
+    }
+    const services = await prisma.service.findMany({
+      where,
+      orderBy: { heureDebut: 'asc' },
+      include: {
+        ligne: true,
+        sens: true,
+        conducteur: true,
+        // Ajoute d'autres relations si besoin
+      }
+    });
+    res.json(services);
+  } catch (err) {
+    console.error('Erreur récupération services:', err);
+    res.status(500).json({ error: 'Erreur récupération services' });
+  }
 });
 
+// (Optionnel) : tu peux réactiver les autres endpoints si besoin
 app.get('/api/lignes', (req, res) => {
   res.json([]);
 });
