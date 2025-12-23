@@ -97,12 +97,77 @@ app.get('/api/lignes', async (req, res) => {
   }
 });
 
-app.get('/api/conducteurs', (req, res) => {
-  res.json([]);
+
+// --- Endpoints Etablissements/Dépôts ---
+// Liste tous les établissements
+app.get('/api/etablissements', async (req, res) => {
+  try {
+    const etablissements = await prisma.etablissement.findMany({
+      include: {
+        vehicles: true,
+        employes: true,
+        lignes: true,
+      }
+    });
+    res.json(etablissements);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur récupération établissements' });
+  }
 });
 
-app.get('/api/vehicles', (req, res) => {
-  res.json([]);
+// Détail d'un établissement
+app.get('/api/etablissements/:id', async (req, res) => {
+  try {
+    const etab = await prisma.etablissement.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vehicles: true,
+        employes: true,
+        lignes: true,
+      }
+    });
+    if (!etab) return res.status(404).json({ error: 'Etablissement non trouvé' });
+    res.json(etab);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur récupération établissement' });
+  }
+});
+
+// Création
+app.post('/api/etablissements', async (req, res) => {
+  try {
+    const { nom, type, adresse } = req.body;
+    const etab = await prisma.etablissement.create({
+      data: { nom, type, adresse }
+    });
+    res.json(etab);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur création établissement' });
+  }
+});
+
+// Modification
+app.put('/api/etablissements/:id', async (req, res) => {
+  try {
+    const { nom, type, adresse } = req.body;
+    const etab = await prisma.etablissement.update({
+      where: { id: req.params.id },
+      data: { nom, type, adresse }
+    });
+    res.json(etab);
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur modification établissement' });
+  }
+});
+
+// Suppression
+app.delete('/api/etablissements/:id', async (req, res) => {
+  try {
+    await prisma.etablissement.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur suppression établissement' });
+  }
 });
 
 app.listen(PORT, () => {

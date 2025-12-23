@@ -6,8 +6,23 @@ datasource db {
   // url      = "file:./dev.db"
 }
 
+
 generator client {
   provider = "prisma-client-js"
+}
+
+model Etablissement {
+  id        String   @id @default(cuid())
+  nom       String
+  type      String   // 'Depot' ou 'Etab. administratif'
+  adresse   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  vehicles   Vehicle[]
+  employes   Employe[]
+  lignes     Ligne[]
 }
 
 model Employe {
@@ -35,6 +50,10 @@ model Employe {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Relation Etablissement
+  etablissementId String?
+  etablissement   Etablissement? @relation(fields: [etablissementId], references: [id], onDelete: SetNull)
 
   @@index([poste, statut])
   @@index([email])
@@ -67,7 +86,6 @@ model Vehicle {
   places            Int?
   miseEnService     DateTime?
   derniereRevision  DateTime?
-  depot             String?
   photoUrl          String?
 
   // Barres / scores (0-100)
@@ -84,6 +102,10 @@ model Vehicle {
   // Relations
   statesHistory     VehicleStateHistory[]
   interventions     Intervention[]
+
+  // Relation Etablissement
+  etablissementId   String?
+  etablissement     Etablissement? @relation(fields: [etablissementId], references: [id], onDelete: SetNull)
 }
 
 model VehicleStateHistory {
@@ -179,6 +201,10 @@ model Ligne {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Relation Etablissement
+  etablissementId String?
+  etablissement   Etablissement? @relation(fields: [etablissementId], references: [id], onDelete: SetNull)
 
   // Relations
   sens            Sens[]
