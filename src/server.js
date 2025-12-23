@@ -904,12 +904,16 @@ app.get('/api/lignes', async (_req, res) => {
           include: {
             services: { 
               orderBy: { heureDebut: 'asc' },
-              include: { conducteur: true }
+              include: { 
+                conducteur: true,
+                sens: true
+              }
             }
           }
         } 
       }
     });
+    console.log(`[API] GET /api/lignes - loaded ${lignes.length} lignes`);
     res.json(lignes);
   } catch (e) {
     console.error('GET /api/lignes ERROR ->', e);
@@ -1161,7 +1165,11 @@ app.get('/api/services', async (req, res) => {
 
     const services = await prisma.service.findMany({
       where,
-      include: { ligne: true, conducteur: true },
+      include: { 
+        ligne: true, 
+        conducteur: true,
+        sens: true
+      },
       orderBy: { date: 'asc' },
       take: 1000, // Limit to prevent timeout when no date filter is specified
     });
@@ -1224,6 +1232,112 @@ app.get('/api/services/non-assured/list', async (req, res) => {
     res.json(services);
   } catch (e) {
     console.error('GET /api/services/non-assured/list ERROR ->', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Diagnostic endpoint pour vérifier les services
+app.get('/api/services/debug/count', async (req, res) => {
+  try {
+    const { date } = req.query;
+    
+    const totalCount = await prisma.service.count();
+    
+    let dateCount = 0;
+    if (date) {
+      const d = new Date(date);
+      const nextDay = new Date(d);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dateCount = await prisma.service.count({
+        where: {
+          date: { gte: d, lt: nextDay }
+        }
+      });
+    }
+
+    // Compter par ligneId
+    const byLigne = await prisma.service.groupBy({
+      by: ['ligneId'],
+      _count: true
+    });
+
+    res.json({ 
+      totalServices: totalCount,
+      servicesForDate: dateCount,
+      servicesPerLigne: byLigne,
+      message: `Total: ${totalCount}, Pour date ${date}: ${dateCount}`
+    });
+  } catch (e) {
+    console.error('GET /api/services/debug/count ERROR ->', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Endpoint pour générer les services pour les prochains jours
+app.post('/api/services/generate', async (req, res) => {
+  try {
+    const { days = 7 } = req.body;
+    
+    const lignes = await prisma.ligne.findMany({
+      include: { sens: true }
+    });
+
+    if (lignes.length === 0) {
+      return res.json({ message: 'Aucune ligne trouvée' });
+    }
+
+    let createdCount = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Générer pour N jours
+    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + dayOffset);
+      
+      const dayOfWeek = date.getDay(); // 0=dim, 1=lun, ..., 6=sam
+      
+      // Déterminer le jourFonctionnement
+      let jourFonctionnement = 'SEMAINE';
+      if (dayOfWeek === 0) jourFonctionnement = 'DIMANCHE_FERIES';
+      else if (dayOfWeek === 6) jourFonctionnement = 'SAMEDI';
+
+      // Pour chaque ligne
+      for (const ligne of lignes) {
+        // Pour chaque sens
+        for (const sens of ligne.sens) {
+          if (!sens.jourFonctionnement || sens.jourFonctionnement === jourFonctionnement) {
+            // Créer un service simple pour ce sens
+            // Heures par défaut: 6:30 - 18:30
+            try {
+              await prisma.service.create({
+                data: {
+                  ligneId: ligne.id,
+                  sensId: sens.id,
+                  date: date,
+                  heureDebut: '06:30',
+                  heureFin: '18:30',
+                  statut: 'Planifiée',
+                },
+                skip: 0 // Créer même si dupliqué (gestion en BD)
+              }).catch(() => {
+                // Ignore duplicates
+              });
+              createdCount++;
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ 
+      message: `Services générés pour ${days} jour(s)`,
+      tentativeCount: createdCount
+    });
+  } catch (e) {
+    console.error('POST /api/services/generate ERROR ->', e);
     res.status(500).json({ error: String(e) });
   }
 });
