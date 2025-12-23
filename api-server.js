@@ -57,8 +57,44 @@ app.get('/api/services', async (req, res) => {
 });
 
 // (Optionnel) : tu peux réactiver les autres endpoints si besoin
-app.get('/api/lignes', (req, res) => {
-  res.json([]);
+
+// Endpoint réel pour les lignes, sens et services
+app.get('/api/lignes', async (req, res) => {
+  try {
+    // Optionnel : filtrer par date (ex: ?date=2025-12-23)
+    const { date } = req.query;
+    let serviceWhere = {};
+    if (date) {
+      serviceWhere = {
+        date: {
+          gte: new Date(date + 'T00:00:00Z'),
+          lt: new Date(date + 'T23:59:59Z')
+        }
+      };
+    }
+    const lignes = await prisma.ligne.findMany({
+      orderBy: { numero: 'asc' },
+      include: {
+        sens: {
+          orderBy: { ordre: 'asc' },
+          include: {
+            services: {
+              where: serviceWhere,
+              orderBy: { heureDebut: 'asc' },
+              include: {
+                conducteur: true,
+                vehicule: true,
+              }
+            }
+          }
+        }
+      }
+    });
+    res.json(lignes);
+  } catch (err) {
+    console.error('Erreur récupération lignes:', err);
+    res.status(500).json({ error: 'Erreur récupération lignes' });
+  }
 });
 
 app.get('/api/conducteurs', (req, res) => {
