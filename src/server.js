@@ -359,9 +359,25 @@ app.get('/api/vehicles', async (_req, res) => {
 
 // DETAIL
 app.get('/api/vehicles/:parc', async (req, res) => {
-  const v = await prisma.vehicle.findUnique({ where: { parc: req.params.parc } });
-  if (!v) return res.status(404).json({ error: 'Not found' });
-  res.json(v);
+  try {
+    const v = await prisma.vehicle.findUnique({ 
+      where: { parc: req.params.parc },
+      include: {
+        interventions: {
+          orderBy: { createdAt: 'desc' }
+        },
+        statesHistory: {
+          orderBy: { changedAt: 'desc' }
+        },
+        etablissement: true
+      }
+    });
+    if (!v) return res.status(404).json({ error: 'Not found' });
+    res.json(v);
+  } catch (err) {
+    console.error('GET /api/vehicles/:parc ERROR ->', err);
+    res.status(400).json({ error: String(err) });
+  }
 });
 
 // GET vehicle history/mouvements
@@ -418,6 +434,7 @@ app.post('/api/vehicles', async (req, res) => {
       pmr: !!b.pmr,
       depot: b.depot ?? null,
       ct: parseDateFlexible(b.ct),
+      etablissementId: b.etablissementId ?? null,
 
       photosJson: Array.isArray(b.photos) ? JSON.stringify(b.photos) : (b.photosJson || null),
 
@@ -4113,6 +4130,63 @@ async function startServer() {
     } catch (e) {
       console.error('[ADMIN] Error:', e.message);
       res.status(500).json({ error: String(e.message) });
+    }
+  });
+
+  // --- Interventions & Suivi Atelier ---
+  // Ajouter une intervention pour un véhicule
+  app.post('/api/vehicles/:parc/interventions', async (req, res) => {
+    try {
+      const { libelle, datePrevue, commentaire } = req.body;
+      const intervention = await prisma.intervention.create({
+        data: {
+          vehicleParc: req.params.parc,
+          libelle,
+          datePrevue: datePrevue ? new Date(datePrevue) : null,
+          commentaire,
+          statut: 'planifiée',
+        }
+      });
+      res.json(intervention);
+    } catch (err) {
+      console.error('[INTERVENTIONS] Error:', err);
+      res.status(500).json({ error: 'Erreur création intervention' });
+    }
+  });
+
+  // Mettre à jour une intervention
+  app.put('/api/vehicles/:parc/interventions/:id', async (req, res) => {
+    try {
+      const { statut, dateEffective } = req.body;
+      const intervention = await prisma.intervention.update({
+        where: { id: parseInt(req.params.id) },
+        data: { 
+          statut: statut || undefined,
+          dateEffective: dateEffective ? new Date(dateEffective) : new Date()
+        }
+      });
+      res.json(intervention);
+    } catch (err) {
+      console.error('[INTERVENTIONS] Error:', err);
+      res.status(500).json({ error: 'Erreur mise à jour intervention' });
+    }
+  });
+
+  // Ajouter un mouvement d'état avec commentaire
+  app.post('/api/vehicles/:parc/state-history', async (req, res) => {
+    try {
+      const { toStatus, note } = req.body;
+      const history = await prisma.vehicleStateHistory.create({
+        data: {
+          vehicleParc: req.params.parc,
+          toStatus,
+          note
+        }
+      });
+      res.json(history);
+    } catch (err) {
+      console.error('[STATE-HISTORY] Error:', err);
+      res.status(500).json({ error: 'Erreur ajout historique' });
     }
   });
 
