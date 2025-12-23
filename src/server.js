@@ -1311,59 +1311,35 @@ app.post('/api/services/generate', async (req, res) => {
         for (const sens of ligne.sens) {
           if (!sens.jourFonctionnement || sens.jourFonctionnement === jourFonctionnement) {
             try {
-              // Utiliser upsert pour éviter les doublons
-              await prisma.service.upsert({
+              // Vérifier si le service existe déjà
+              const existingService = await prisma.service.findFirst({
                 where: {
-                  // Créer une clé unique composée (ligneId, sensId, date, heureDebut)
-                  // Note: cette clé doit exister en BD avec unique constraint
-                  // Si pas de constraint, on cherche d'abord avant de créer
-                },
-                update: {
-                  // Ne pas mettre à jour si existe déjà
-                  statut: 'Planifiée',
-                },
-                create: {
                   ligneId: ligne.id,
                   sensId: sens.id,
-                  date: new Date(dateStr + 'T06:30:00'),
-                  heureDebut: '06:30',
-                  heureFin: '18:30',
-                  statut: 'Planifiée',
+                  date: {
+                    gte: new Date(dateStr + 'T00:00:00'),
+                    lt: new Date(dateStr + 'T23:59:59')
+                  }
                 }
               });
-              createdCount++;
-            } catch (dupError) {
-              // Si upsert échoue (pas de unique constraint), essayer create simple
-              try {
-                const existingService = await prisma.service.findFirst({
-                  where: {
+
+              if (!existingService) {
+                await prisma.service.create({
+                  data: {
                     ligneId: ligne.id,
                     sensId: sens.id,
-                    date: {
-                      gte: new Date(dateStr + 'T00:00:00'),
-                      lt: new Date(dateStr + 'T23:59:59')
-                    }
+                    date: new Date(dateStr + 'T06:30:00'),
+                    heureDebut: '06:30',
+                    heureFin: '18:30',
+                    statut: 'Planifiée',
                   }
                 });
-
-                if (!existingService) {
-                  await prisma.service.create({
-                    data: {
-                      ligneId: ligne.id,
-                      sensId: sens.id,
-                      date: new Date(dateStr + 'T06:30:00'),
-                      heureDebut: '06:30',
-                      heureFin: '18:30',
-                      statut: 'Planifiée',
-                    }
-                  });
-                  createdCount++;
-                } else {
-                  skippedCount++;
-                }
-              } catch (createError) {
-                console.error(`Erreur création service ${ligne.id}/${sens.id}/${dateStr}:`, createError.message);
+                createdCount++;
+              } else {
+                skippedCount++;
               }
+            } catch (err) {
+              console.error(`Erreur création service ${ligne.id}/${sens.id}/${dateStr}:`, err.message);
             }
           }
         }
@@ -1371,7 +1347,7 @@ app.post('/api/services/generate', async (req, res) => {
     }
 
     res.json({ 
-      message: `Services générés: ${createdCount} crées, ${skippedCount} existantes`,
+      message: `Services générés: ${createdCount} créés, ${skippedCount} existants`,
       created: createdCount,
       skipped: skippedCount
     });
