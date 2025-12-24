@@ -734,6 +734,84 @@ app.delete('/api/vehicles/:parc', async (req, res) => {
   }
 });
 
+// ========== ETABLISSEMENTS ==========
+
+// GET /api/etablissements - Liste tous les établissements
+app.get('/api/etablissements', async (req, res) => {
+  try {
+    const etablissements = await prisma.etablissement.findMany({
+      include: {
+        vehicles: true,
+        employes: true,
+        lignes: true,
+      }
+    });
+    res.json(etablissements);
+  } catch (err) {
+    console.error('GET /api/etablissements ERROR ->', err);
+    res.status(500).json({ error: 'Erreur récupération établissements' });
+  }
+});
+
+// GET /api/etablissements/:id - Détail d'un établissement
+app.get('/api/etablissements/:id', async (req, res) => {
+  try {
+    const etab = await prisma.etablissement.findUnique({
+      where: { id: req.params.id },
+      include: {
+        vehicles: true,
+        employes: true,
+        lignes: true,
+      }
+    });
+    if (!etab) return res.status(404).json({ error: 'Etablissement non trouvé' });
+    res.json(etab);
+  } catch (err) {
+    console.error('GET /api/etablissements/:id ERROR ->', err);
+    res.status(500).json({ error: 'Erreur récupération établissement' });
+  }
+});
+
+// POST /api/etablissements - Création
+app.post('/api/etablissements', async (req, res) => {
+  try {
+    const { nom, type, adresse } = req.body;
+    const etab = await prisma.etablissement.create({
+      data: { nom, type, adresse }
+    });
+    res.json(etab);
+  } catch (err) {
+    console.error('POST /api/etablissements ERROR ->', err);
+    res.status(500).json({ error: 'Erreur création établissement' });
+  }
+});
+
+// PUT /api/etablissements/:id - Modification
+app.put('/api/etablissements/:id', async (req, res) => {
+  try {
+    const { nom, type, adresse } = req.body;
+    const etab = await prisma.etablissement.update({
+      where: { id: req.params.id },
+      data: { nom, type, adresse }
+    });
+    res.json(etab);
+  } catch (err) {
+    console.error('PUT /api/etablissements/:id ERROR ->', err);
+    res.status(500).json({ error: 'Erreur modification établissement' });
+  }
+});
+
+// DELETE /api/etablissements/:id - Suppression
+app.delete('/api/etablissements/:id', async (req, res) => {
+  try {
+    await prisma.etablissement.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/etablissements/:id ERROR ->', err);
+    res.status(500).json({ error: 'Erreur suppression établissement' });
+  }
+});
+
 // ========== JURHE - GESTION DU PERSONNEL ==========
 
 // GET /api/employes - Liste tous les employés (avec filtrage par poste)

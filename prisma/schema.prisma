@@ -199,6 +199,12 @@ model Ligne {
   demandeChrono   Boolean  @default(false) // Demande la vérification de la carte chrono
   contraintes     String?  // JSON array: ["Vacances scolaires", "Navette professionnelle", "Période estivale", etc.]
   
+  // Paramètres du cycle de service
+  estScolaire     Boolean  @default(false)  // Service scolaire
+  estSpecial      Boolean  @default(false)  // Service spécial
+  departLimite    Boolean  @default(false)  // Service à départ limité
+  serviceLimite   Boolean  @default(false)  // Service limité
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
