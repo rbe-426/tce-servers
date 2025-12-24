@@ -1339,6 +1339,10 @@ app.post('/api/lignes', async (req, res) => {
       statut: String(b.statut || 'Actif'),
       description: b.description || null,
       demandeChrono: b.demandeChrono === true,
+      estScolaire: b.estScolaire === true,
+      estSpecial: b.estSpecial === true,
+      departLimite: b.departLimite === true,
+      serviceLimite: b.serviceLimite === true,
     };
 
     const ligne = await prisma.ligne.create({ 
@@ -1380,6 +1384,10 @@ app.put('/api/lignes/:id', async (req, res) => {
       demandeChrono: b.demandeChrono ?? undefined,
       calendrierJson: b.calendrierJson ?? undefined,
       contraintes: b.contraintes ?? undefined,
+      estScolaire: b.estScolaire ?? undefined,
+      estSpecial: b.estSpecial ?? undefined,
+      departLimite: b.departLimite ?? undefined,
+      serviceLimite: b.serviceLimite ?? undefined,
     };
 
     const ligne = await prisma.ligne.update({ 
