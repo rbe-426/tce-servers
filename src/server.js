@@ -443,10 +443,9 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
       }
     }
 
-    // Récupérer les véhicules disponibles et autorisés
-    const vehicles = await prisma.vehicle.findMany({
+    // Récupérer les véhicules disponibles
+    let allAvailableVehicles = await prisma.vehicle.findMany({
       where: {
-        type: { in: eligibleTypes },
         statut: 'Disponible'  // Seulement les véhicules disponibles
       },
       select: {
@@ -458,8 +457,14 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
         tauxSante: true
       },
       orderBy: [{ type: 'asc' }, { parc: 'asc' }],
-      take: 100  // Limiter à 100 résultats max
+      take: 500
     });
+
+    // Filtrer par types autorisés (recherche flexible - contient le mot clé)
+    const vehicles = allAvailableVehicles.filter(v => {
+      if (eligibleTypes.length === 0) return true; // Si aucun filtre, accepter tous
+      return eligibleTypes.some(et => v.type.toLowerCase().includes(et.toLowerCase()));
+    }).slice(0, 100); // Limiter à 100 résultats
 
     res.json({ 
       serviceId,
@@ -499,9 +504,6 @@ app.get('/api/vehicles/:parc', async (req, res) => {
       include: {
         interventions: {
           orderBy: { createdAt: 'desc' }
-        },
-        statesHistory: {
-          orderBy: { changedAt: 'desc' }
         },
         etablissement: true
       }
@@ -4356,7 +4358,9 @@ async function startServer() {
     
     console.log(`✅ Database connection successful (${duration}ms)`);
     
-    // 🚀 Génération automatique des services au démarrage
+    // 🚀 Génération automatique des services au démarrage (DISABLED FOR NOW - will cause crash)
+    console.log('[STARTUP] Service generation will run on demand via /api/services/generate endpoint');
+    /*
     console.log('[STARTUP] Starting automatic service generation...');
     try {
       const lignes = await prisma.ligne.findMany({
@@ -4419,6 +4423,7 @@ async function startServer() {
     } catch (err) {
       console.error('[STARTUP] Service generation failed:', err.message);
     }
+    */
   
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
