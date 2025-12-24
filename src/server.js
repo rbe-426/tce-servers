@@ -143,6 +143,81 @@ function getTodayDateParis() {
   return `${year}-${month}-${day}`;
 }
 
+// Jours fériés fixes en France
+const FIXED_HOLIDAYS = [
+  [1, 1],   // 1er janvier
+  [5, 1],   // 1er mai
+  [7, 14],  // 14 juillet
+  [8, 15],  // 15 août
+  [11, 1],  // 1er novembre
+  [11, 11], // 11 novembre
+  [12, 25], // 25 décembre
+];
+
+// Calculer les jours fériés mobiles (Pâques, Ascension, Pentecôte)
+function getEasterDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+// Vérifier si une date est un jour férié en France
+function isFrenchHoliday(date) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  // Vérifier jours fériés fixes
+  if (FIXED_HOLIDAYS.some(([m, d]) => m === month && d === day)) {
+    return true;
+  }
+  
+  // Vérifier jours fériés mobiles
+  const easter = getEasterDate(year);
+  const easterMonth = easter.getMonth() + 1;
+  const easterDay = easter.getDate();
+  
+  // Lundi de Pâques (jour après Pâques)
+  if (month === easterMonth && day === easterDay + 1) return true;
+  
+  // Ascension (39 jours après Pâques)
+  const ascension = new Date(easter);
+  ascension.setDate(ascension.getDate() + 39);
+  if (month === ascension.getMonth() + 1 && day === ascension.getDate()) return true;
+  
+  // Lundi de Pentecôte (50 jours après Pâques)
+  const pentecote = new Date(easter);
+  pentecote.setDate(pentecote.getDate() + 50);
+  if (month === pentecote.getMonth() + 1 && day === pentecote.getDate()) return true;
+  
+  return false;
+}
+
+// Déterminer le jourFonctionnement basé sur la date
+function getDayTypeForDate(date) {
+  const dayOfWeek = date.getDay(); // 0=dim, 1=lun, ..., 6=sam
+  
+  if (dayOfWeek === 0 || isFrenchHoliday(date)) {
+    return 'DIMANCHE_FERIES'; // Dimanche ou jour férié
+  } else if (dayOfWeek === 6) {
+    return 'SAMEDI';
+  } else {
+    return 'SEMAINE';
+  }
+}
+
 // ---------- ping ----------
 app.get('/', (_req, res) => res.send('TC Outil API - Voyages TC Essonnes'));
 
@@ -376,7 +451,7 @@ app.get('/api/vehicles/:parc', async (req, res) => {
     res.json(v);
   } catch (err) {
     console.error('GET /api/vehicles/:parc ERROR ->', err);
-    res.status(400).json({ error: String(err) });
+    res.status(500).json({ error: String(err.message || err) });
   }
 });
 
@@ -1355,12 +1430,8 @@ app.post('/api/services/generate', async (req, res) => {
       const date = new Date(today);
       date.setDate(date.getDate() + dayOffset);
       
-      const dayOfWeek = date.getDay(); // 0=dim, 1=lun, ..., 6=sam
-      
-      // Déterminer le jourFonctionnement
-      let jourFonctionnement = 'SEMAINE';
-      if (dayOfWeek === 0) jourFonctionnement = 'DIMANCHE_FERIES';
-      else if (dayOfWeek === 6) jourFonctionnement = 'SAMEDI';
+      // Utiliser la nouvelle fonction qui gère aussi les jours fériés
+      const jourFonctionnement = getDayTypeForDate(date);
 
       const dateStr = date.toISOString().split('T')[0];
 
@@ -1368,7 +1439,8 @@ app.post('/api/services/generate', async (req, res) => {
       for (const ligne of lignes) {
         // Pour chaque sens
         for (const sens of ligne.sens) {
-          if (!sens.jourFonctionnement || sens.jourFonctionnement === jourFonctionnement) {
+          // Créer le service SEULEMENT si le jour de fonctionnement du sens correspond au jour actuel
+          if (sens.jourFonctionnement === jourFonctionnement) {
             try {
               // Vérifier si le service existe déjà
               const existingService = await prisma.service.findFirst({
@@ -4223,6 +4295,71 @@ async function startServer() {
     prismaReady = true;
     
     console.log(`✅ Database connection successful (${duration}ms)`);
+    
+    // 🚀 Génération automatique des services au démarrage
+    console.log('[STARTUP] Starting automatic service generation...');
+    try {
+      const lignes = await prisma.ligne.findMany({
+        include: { sens: true }
+      });
+
+      if (lignes.length > 0) {
+        let createdCount = 0;
+        let skippedCount = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Générer les services pour 60 jours à l'avance
+        for (let dayOffset = 0; dayOffset < 60; dayOffset++) {
+          const date = new Date(today);
+          date.setDate(date.getDate() + dayOffset);
+          
+          const jourFonctionnement = getDayTypeForDate(date);
+          const dateStr = date.toISOString().split('T')[0];
+
+          for (const ligne of lignes) {
+            for (const sens of ligne.sens) {
+              if (sens.jourFonctionnement === jourFonctionnement) {
+                try {
+                  const existingService = await prisma.service.findFirst({
+                    where: {
+                      ligneId: ligne.id,
+                      sensId: sens.id,
+                      date: {
+                        gte: new Date(dateStr + 'T00:00:00'),
+                        lt: new Date(dateStr + 'T23:59:59')
+                      }
+                    }
+                  });
+
+                  if (!existingService) {
+                    await prisma.service.create({
+                      data: {
+                        ligneId: ligne.id,
+                        sensId: sens.id,
+                        date: new Date(dateStr + 'T06:30:00'),
+                        heureDebut: '06:30',
+                        heureFin: '18:30',
+                        statut: 'Planifiée',
+                      }
+                    });
+                    createdCount++;
+                  } else {
+                    skippedCount++;
+                  }
+                } catch (err) {
+                  console.error(`[STARTUP] Service creation error ${ligne.id}/${sens.id}/${dateStr}:`, err.message);
+                }
+              }
+            }
+          }
+        }
+        console.log(`✅ Services auto-generated: ${createdCount} created, ${skippedCount} existing`);
+      }
+    } catch (err) {
+      console.error('[STARTUP] Service generation failed:', err.message);
+    }
+  
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     console.error('[ERROR] Stack:', error.stack);

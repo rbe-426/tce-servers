@@ -3,23 +3,22 @@ const prisma = new PrismaClient();
 
 (async () => {
   try {
-    const sens = await prisma.sens.findMany({ 
-      take: 15,
-      select: {
-        id: true,
-        nom: true,
-        ligne: { select: { numero: true } },
-        heureDebut: true,
-        heureFin: true,
-        jourFonctionnement: true
-      }
+    const sens = await prisma.sens.findMany({
+      include: { ligne: { select: { numero: true } } },
+      orderBy: [{ ligne: { numero: 'asc' } }, { ordre: 'asc' }]
     });
-    console.log(`📍 Sens trouvés: ${sens.length}`);
+
+    console.log('📋 SENS ACTUELS:');
+    console.log('='.repeat(80));
+    
     sens.forEach(s => {
-      console.log(`- ${s.ligne.numero} ${s.nom}: ${s.heureDebut}-${s.heureFin} (${s.jourFonctionnement})`);
+      console.log(`Ligne ${s.ligne.numero.padEnd(5)} | Nom: "${s.nom}" | jourFonctionnement: "${s.jourFonctionnement}"`);
     });
+    
+    console.log('\n' + '='.repeat(80));
+    console.log(`Total: ${sens.length} sens`);
   } catch (e) {
-    console.error('Error:', e.message);
+    console.error('❌ Erreur:', e.message);
   } finally {
     await prisma.$disconnect();
   }
