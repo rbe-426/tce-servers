@@ -415,6 +415,65 @@ app.get('/api/vehicles/eligible/:ligne', async (req, res) => {
   }
 });
 
+// 🚀 NEW: GET vehicles assignables (disponibles + autorisés pour une ligne)
+app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    
+    // Récupérer le service avec sa ligne et ses sens
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: { 
+        ligne: true,
+        sens: true 
+      }
+    });
+
+    if (!service) {
+      return res.status(404).json({ error: 'Service non trouvé' });
+    }
+
+    // Récupérer les types de véhicules autorisés pour cette ligne
+    let eligibleTypes = [];
+    if (service.ligne.typesVehicules) {
+      try {
+        eligibleTypes = JSON.parse(service.ligne.typesVehicules);
+      } catch (e) {
+        console.warn(`Erreur parsing typesVehicules:`, e.message);
+      }
+    }
+
+    // Récupérer les véhicules disponibles et autorisés
+    const vehicles = await prisma.vehicle.findMany({
+      where: {
+        type: { in: eligibleTypes },
+        statut: 'Disponible'  // Seulement les véhicules disponibles
+      },
+      select: {
+        parc: true,
+        type: true,
+        modele: true,
+        immat: true,
+        statut: true,
+        tauxSante: true
+      },
+      orderBy: [{ type: 'asc' }, { parc: 'asc' }],
+      take: 100  // Limiter à 100 résultats max
+    });
+
+    res.json({ 
+      serviceId,
+      ligneNumero: service.ligne.numero,
+      eligibleTypes,
+      vehicles,
+      total: vehicles.length
+    });
+  } catch (e) {
+    console.error('GET /api/services/:serviceId/assignable-vehicles ERROR ->', e.message);
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 // LIST
 app.get('/api/vehicles', async (_req, res) => {
   try {
@@ -447,10 +506,11 @@ app.get('/api/vehicles/:parc', async (req, res) => {
         etablissement: true
       }
     });
-    if (!v) return res.status(404).json({ error: 'Not found' });
+    if (!v) return res.status(404).json({ error: 'Véhicule non trouvé' });
     res.json(v);
   } catch (err) {
-    console.error('GET /api/vehicles/:parc ERROR ->', err);
+    console.error('GET /api/vehicles/:parc ERROR ->', err.message);
+    console.error('Parc requested:', req.params.parc);
     res.status(500).json({ error: String(err.message || err) });
   }
 });
