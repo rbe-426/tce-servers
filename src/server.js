@@ -503,7 +503,7 @@ app.get('/api/vehicles/:parc', async (req, res) => {
       where: { parc: req.params.parc },
       include: {
         interventions: {
-          orderBy: { createdAt: 'desc' }
+          orderBy: { datePrevue: 'desc' }
         },
         etablissement: true
       }
