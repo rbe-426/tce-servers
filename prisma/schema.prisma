@@ -23,6 +23,17 @@ model Etablissement {
   vehicles   Vehicle[]
   employes   Employe[]
   lignes     Ligne[]
+  
+  // Nouvelles relations
+  employeRoles        EmployeRole[] @relation("EmployeRolesDepot")
+  personnelStats      PersonnelStats? @relation("PersonnelStatsDepot")
+  mercatoSource       VehicleMercato[] @relation("MercatoSource")
+  mercatoDestination  VehicleMercato[] @relation("MercatoDestination")
+  vehicleNeeds        VehicleNeed[] @relation("VehicleNeedsDepot")
+  authSource          InterDepotAuthorization[] @relation("AuthSourceDepot")
+  authExploitant      InterDepotAuthorization[] @relation("AuthExploitantDepot")
+  serviceTransferOrigine    InterDepotServiceTransfer[] @relation("TransferOrigineDepot")
+  serviceTransferExecution  InterDepotServiceTransfer[] @relation("TransferExecutionDepot")
 }
 
 model Employe {
@@ -54,6 +65,9 @@ model Employe {
   // Relation Etablissement
   etablissementId String?
   etablissement   Etablissement? @relation(fields: [etablissementId], references: [id], onDelete: SetNull)
+
+  // Nouvelle relation
+  roles           EmployeRole[]
 
   @@index([poste, statut])
   @@index([email])
@@ -102,6 +116,7 @@ model Vehicle {
   // Relations
   statesHistory     VehicleStateHistory[]
   interventions     Intervention[]
+  mercatos          VehicleMercato[]
 
   // Relation Etablissement
   etablissementId   String?
@@ -216,6 +231,7 @@ model Ligne {
   sens            Sens[]
   services        Service[]
   trajets         Trajet[]
+  interDepotAuths InterDepotAuthorization[]
 
   @@index([numero, statut])
 }
@@ -272,6 +288,7 @@ model Service {
   updatedAt       DateTime @updatedAt
 
   pointages       Pointage[]
+  interDepotTransfers InterDepotServiceTransfer[]
 
   @@index([ligneId, date, statut])
   @@index([conducteurId])
@@ -694,5 +711,170 @@ model Notification {
   @@index([dateDebut, dateFin])
 }
 
+// ==================== MERCATOS & PERSONNEL ====================
 
+model EmployeRole {
+  id              String   @id @default(cuid())
+  employeId       String
+  employe         Employe  @relation(fields: [employeId], references: [id], onDelete: Cascade)
+  
+  role            String   // "DIRECTEUR_SITE", "RESPONSABLE_EXPLOITATION", "REGULATEUR", "ASSUREUR", "CONDUCTEUR"
+  dateDebut       DateTime @default(now())
+  dateFin         DateTime?
+  
+  // Pour les rôles spécifiques au dépôt
+  depotId         String?
+  depot           Etablissement? @relation("EmployeRolesDepot", fields: [depotId], references: [id], onDelete: SetNull)
+  
+  isActif         Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
+  @@index([employeId, role, isActif])
+  @@index([depotId])
+}
+
+// Stats du personnel par dépôt
+model PersonnelStats {
+  id              String   @id @default(cuid())
+  depotId         String   @unique
+  depot           Etablissement @relation("PersonnelStatsDepot", fields: [depotId], references: [id], onDelete: Cascade)
+  
+  directorCount   Int      @default(0)    // 1 requis
+  responsableCount Int     @default(0)    // 1 requis
+  regulatorCount  Int      @default(0)    // 2 requis
+  insurerCount    Int      @default(0)    // 3 requis
+  driverCount     Int      @default(0)    // Conducteurs
+  
+  totalPersonnel  Int      @default(0)
+  
+  lastUpdated     DateTime @default(now()) @updatedAt
+
+  @@index([depotId])
+}
+
+// Mercatos (Mouvements de véhicules)
+model VehicleMercato {
+  id              String   @id @default(cuid())
+  
+  vehicleParc     String
+  vehicle         Vehicle  @relation(fields: [vehicleParc], references: [parc], onDelete: Cascade)
+  
+  depotSourceId   String
+  depotSource     Etablissement @relation("MercatoSource", fields: [depotSourceId], references: [id], onDelete: Restrict)
+  
+  depotDestinationId String
+  depotDestination Etablissement @relation("MercatoDestination", fields: [depotDestinationId], references: [id], onDelete: Restrict)
+  
+  statut          String   @default("EN_ATTENTE") // "EN_ATTENTE", "APPROUVÉ", "TRANSPORTÉ", "REJETÉ"
+  
+  dateProposee    DateTime
+  dateTransport   DateTime?
+  motif           String?  // "Surcharge", "Défaillance", "Maintenance", "Réorganisation", etc.
+  
+  notes           String?
+  approveParId    String?  // ID du directeur qui approuve
+  rejectionReason String?  // Motif du rejet
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vehicleParc])
+  @@index([depotSourceId, statut])
+  @@index([depotDestinationId, statut])
+  @@index([statut])
+}
+
+// Besoins en véhicules par dépôt
+model VehicleNeed {
+  id              String   @id @default(cuid())
+  
+  depotId         String
+  depot           Etablissement @relation("VehicleNeedsDepot", fields: [depotId], references: [id], onDelete: Cascade)
+  
+  type            String   // "Minibus", "Autobus", "Autobus Articulé", "Autocar", etc.
+  
+  dateDebut       DateTime
+  dateFin         DateTime?
+  
+  nombreNeeded    Int      // Nombre de véhicules de ce type requis
+  nombreActuel    Int      @default(0)
+  
+  raison          String?  // "Pics de charge", "Maintenance programmée", "Saisonnalité", etc.
+  
+  isCritical      Boolean  @default(false) // Besoin urgent
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([depotId, type, dateDebut])
+  @@index([isCritical])
+}
+
+// Autorisations inter-dépôts
+model InterDepotAuthorization {
+  id              String   @id @default(cuid())
+  
+  ligneId         String
+  ligne           Ligne    @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  
+  depotSourceId   String
+  depotSource     Etablissement @relation("AuthSourceDepot", fields: [depotSourceId], references: [id], onDelete: Cascade)
+  
+  depotExploitantId String
+  depotExploitant Etablissement @relation("AuthExploitantDepot", fields: [depotExploitantId], references: [id], onDelete: Cascade)
+  
+  statut          String   @default("ACTIVE") // "ACTIVE", "SUSPENDUE", "REFUSÉE", "EN_ATTENTE"
+  
+  // Conditions
+  canTakeOver     Boolean  @default(true)  // Le dépôt B peut reprendre des courses
+  maxCourses      Int?                     // Limite de courses/jour (null = illimité)
+  periodicite     String   @default("PERMANENT") // "PERMANENT", "SAISONNIER", "TEMPORAIRE"
+  dateDebut       DateTime @default(now())
+  dateFin         DateTime?
+  
+  conditions      String?  // Conditions particulières (JSON)
+  notes           String?
+  
+  approuvePar     String?  // ID du responsable d'exploitation qui approuve
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  interDepotTransfers InterDepotServiceTransfer[]
+
+  @@unique([ligneId, depotSourceId, depotExploitantId])
+  @@index([ligneId])
+  @@index([depotSourceId])
+  @@index([depotExploitantId])
+  @@index([statut])
+}
+
+// Historique des reprises de course inter-dépôts
+model InterDepotServiceTransfer {
+  id              String   @id @default(cuid())
+  
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  authorizationId String
+  authorization   InterDepotAuthorization @relation(fields: [authorizationId], references: [id], onDelete: Restrict)
+  
+  depotOrigineId  String
+  depotOrigine    Etablissement @relation("TransferOrigineDepot", fields: [depotOrigineId], references: [id], onDelete: Restrict)
+  
+  depotExecutionId String
+  depotExecution  Etablissement @relation("TransferExecutionDepot", fields: [depotExecutionId], references: [id], onDelete: Restrict)
+  
+  statut          String   @default("TRANSFERÉ") // "TRANSFERÉ", "COMPLÉTÉ", "REJETÉ"
+  raison          String?  // "Absence conducteur", "Véhicule défaillant", "Surcharge", etc.
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([serviceId])
+  @@index([authorizationId])
+  @@index([depotOrigineId])
+  @@index([depotExecutionId])
+  @@index([statut])
+}
