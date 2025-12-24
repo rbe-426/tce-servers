@@ -1,9 +1,126 @@
 #!/usr/bin/env node
 /**
- * Import direct des lignes + sens + services dans la BD (Prisma)
- * - 1 ligne par numero (upsert)
- * - chaque sens a son propre calendrier (jours)
- * - création des services par date, par sens
+ * TUTORIEL : Import direct des lignes + sens + services dans la BD (Prisma)
+ * 
+ * Ce script démontre comment importer en masse des données de transport.
+ * À adapter pour votre contexte spécifique.
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 📚 GUIDE DE CONCEPTION ET DE RÉÉCRITURE
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * ### ÉTAPE 1 : Préparation des données
+ * 
+ * Structurez vos données de lignes dans un format JSON avec cette hiérarchie :
+ * - Ligne (numéro, nom, type de véhicule, heures d'exploitation)
+ *   ├─ Sens (direction, calendrier, jours d'exploitation)
+ *   │  └─ Services (horaires de départ/arrivée pour chaque jour)
+ *   └─ Autres sens...
+ * 
+ * Exemple de structure :
+ * ```
+ * {
+ *   "numero": "4201",
+ *   "nom": "LIGNE_4201",
+ *   "type": "autobus",
+ *   "jours": "L; M; M; J; V; S; D",
+ *   "heureDebut": "05h45",
+ *   "heureFin": "23h19",
+ *   "sens": [
+ *     {
+ *       "nom": "Aller",
+ *       "jours": "L; M; M; J; V",
+ *       "direction": "Point A → Point B",
+ *       "services": [
+ *         { "heureDebut": "05h45", "heureFin": "10h11" },
+ *         { "heureDebut": "12h00", "heureFin": "17h55" }
+ *       ]
+ *     },
+ *     {
+ *       "nom": "Retour",
+ *       "jours": "L; M; M; J; V",
+ *       "direction": "Point B → Point A",
+ *       "services": [...]
+ *     }
+ *   ]
+ * }
+ * ```
+ * 
+ * ### ÉTAPE 2 : Définition des jours d'exploitation
+ * 
+ * Format des jours : "L; M; M; J; V; S; D"
+ * - L = Lundi
+ * - M = Mardi, Mercredi (si répété 2x)
+ * - J = Jeudi
+ * - V = Vendredi
+ * - S = Samedi
+ * - D = Dimanche
+ * 
+ * Exemples :
+ * - "L; M; M; J; V" = Lundi à Vendredi
+ * - "S" = Samedi uniquement
+ * - "L; M; M; J; V; S; D" = Tous les jours
+ * 
+ * ### ÉTAPE 3 : Format des horaires
+ * 
+ * Tous les horaires utilisent le format HHhMM :
+ * - "06h30" (6h30)
+ * - "14h00" (14h)
+ * - "23h59" (23h59)
+ * 
+ * ### ÉTAPE 4 : Implémentation du script
+ * 
+ * Pour adapter ce script :
+ * 
+ * 1. Remplacez LIGNES_DATA avec vos données réelles
+ * 2. Assurez-vous que la structure JSON respecte le schéma ci-dessus
+ * 3. Vérifiez que tous les champs requis sont présents
+ * 4. Exécutez : node backend/scripts/import-lignes-direct.js
+ * 
+ * Optionnel : adapter les fonctions helper (parseHeure, parseJours) si besoin
+ * 
+ * ### ÉTAPE 5 : Flux d'importation
+ * 
+ * Pour chaque ligne :
+ * 1. Upsert la Ligne (création ou mise à jour)
+ * 2. Pour chaque Sens de la ligne :
+ *    a. Upsert le Sens
+ *    b. Parser le calendrier des jours
+ *    c. Générer les dates de service
+ *    d. Pour chaque Service :
+ *       - Créer un Service pour chaque date générée
+ *       - Éviter les doublons
+ * 
+ * ### ÉTAPE 6 : Points clés à respecter
+ * 
+ * ✅ Relations Prisma :
+ * - Une Ligne = 1 record avec numero unique
+ * - Un Sens = unique par (ligneId, nom)
+ * - Un Service = date + heureDebut + heureFin par Sens
+ * 
+ * ✅ Validation :
+ * - Tous les champs requis doivent être présents
+ * - Les horaires doivent être au format HHhMM
+ * - Les jours doivent utiliser le format "L; M; M; J; V; S; D"
+ * 
+ * ✅ Gestion des erreurs :
+ * - Continuez l'import même si une ligne échoue
+ * - Loggez les erreurs pour correction
+ * - Afficher un résumé final (compteurs)
+ * 
+ * ### ÉTAPE 7 : Personnalisation pour vos données
+ * 
+ * Récupérez vos données depuis :
+ * - CSV (parse avec csv-parser ou manual split)
+ * - API externe (fetch + JSON parsing)
+ * - Base de données (SQL queries)
+ * - Fichier JSON local
+ * 
+ * Transformez-les au format de LIGNES_DATA.
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 🔧 TEMPLATE DE CODE À ADAPTER
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -11,6 +128,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // ==================== DONNÉES À IMPORTER ====================
+// 👇 REMPLACER avec vos données réelles
 const LIGNES_DATA = [
   {
     "numero": "4201",
