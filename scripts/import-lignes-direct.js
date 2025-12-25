@@ -153,10 +153,17 @@ function splitPages(rawText) {
 function detectLineNumber(fileName, rawText) {
   // priorité: nom fichier (ex: 4201.pdf, 4270_scolaire.pdf, N139.pdf)
   const base = path.basename(fileName).toUpperCase();
-  let m = base.match(/\b(N\d+|\d{4})\b/);
+  // Cherche au début du nom (avant underscore ou point)
+  let m = base.match(/^([N\d]+?)(?:_|\.)/);
+  if (m && (m[1].match(/^N\d+$/) || m[1].match(/^\d{4}$/))) {
+    return m[1];
+  }
+  
+  // Fallback: cherche n'importe où dans le nom
+  m = base.match(/\b(N\d+|\d{4})\b/);
   if (m) return m[1];
 
-  // fallback: texte
+  // Fallback: texte (pour PDFs avec texte extractible)
   m = String(rawText).toUpperCase().match(/\b(N\d+|\d{4})\b/);
   return m ? m[1] : null;
 }
