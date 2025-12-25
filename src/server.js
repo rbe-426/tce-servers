@@ -4884,6 +4884,20 @@ async function startServer() {
   app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
   app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
 
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      routes: {
+        lignes_assignDepot: 'PUT /api/lignes/:ligneId/assign-depot',
+        lignes_getLines: 'GET /api/lignes',
+        services_assignable_conductors: 'GET /api/services/:serviceId/assignable-conductors'
+      }
+    });
+  });
+
   // Start HTTP server
   console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
   const server = app.listen(PORT, HOST, () => {

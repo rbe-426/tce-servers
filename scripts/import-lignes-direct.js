@@ -1,609 +1,41 @@
 #!/usr/bin/env node
 /**
- * TUTORIEL : Import direct des lignes + sens + services dans la BD (Prisma)
- * 
- * Ce script démontre comment importer en masse des données de transport.
- * À adapter pour votre contexte spécifique.
- * 
- * ═══════════════════════════════════════════════════════════════════════════
- * 📚 GUIDE DE CONCEPTION ET DE RÉÉCRITURE
- * ═══════════════════════════════════════════════════════════════════════════
- * 
- * ### ÉTAPE 1 : Préparation des données
- * 
- * Structurez vos données de lignes dans un format JSON avec cette hiérarchie :
- * - Ligne (numéro, nom, type de véhicule, heures d'exploitation)
- *   ├─ Sens (direction, calendrier, jours d'exploitation)
- *   │  └─ Services (horaires de départ/arrivée pour chaque jour)
- *   └─ Autres sens...
- * 
- * Exemple de structure :
- * ```
- * {
- *   "numero": "4201",
- *   "nom": "LIGNE_4201",
- *   "type": "autobus",
- *   "jours": "L; M; M; J; V; S; D",
- *   "heureDebut": "05h45",
- *   "heureFin": "23h19",
- *   "sens": [
- *     {
- *       "nom": "Aller",
- *       "jours": "L; M; M; J; V",
- *       "direction": "Point A → Point B",
- *       "services": [
- *         { "heureDebut": "05h45", "heureFin": "10h11" },
- *         { "heureDebut": "12h00", "heureFin": "17h55" }
- *       ]
- *     },
- *     {
- *       "nom": "Retour",
- *       "jours": "L; M; M; J; V",
- *       "direction": "Point B → Point A",
- *       "services": [...]
- *     }
- *   ]
- * }
- * ```
- * 
- * ### ÉTAPE 2 : Définition des jours d'exploitation
- * 
- * Format des jours : "L; M; M; J; V; S; D"
- * - L = Lundi
- * - M = Mardi, Mercredi (si répété 2x)
- * - J = Jeudi
- * - V = Vendredi
- * - S = Samedi
- * - D = Dimanche
- * 
- * Exemples :
- * - "L; M; M; J; V" = Lundi à Vendredi
- * - "S" = Samedi uniquement
- * - "L; M; M; J; V; S; D" = Tous les jours
- * 
- * ### ÉTAPE 3 : Format des horaires
- * 
- * Tous les horaires utilisent le format HHhMM :
- * - "06h30" (6h30)
- * - "14h00" (14h)
- * - "23h59" (23h59)
- * 
- * ### ÉTAPE 4 : Implémentation du script
- * 
- * Pour adapter ce script :
- * 
- * 1. Remplacez LIGNES_DATA avec vos données réelles
- * 2. Assurez-vous que la structure JSON respecte le schéma ci-dessus
- * 3. Vérifiez que tous les champs requis sont présents
- * 4. Exécutez : node backend/scripts/import-lignes-direct.js
- * 
- * Optionnel : adapter les fonctions helper (parseHeure, parseJours) si besoin
- * 
- * ### ÉTAPE 5 : Flux d'importation
- * 
- * Pour chaque ligne :
- * 1. Upsert la Ligne (création ou mise à jour)
- * 2. Pour chaque Sens de la ligne :
- *    a. Upsert le Sens
- *    b. Parser le calendrier des jours
- *    c. Générer les dates de service
- *    d. Pour chaque Service :
- *       - Créer un Service pour chaque date générée
- *       - Éviter les doublons
- * 
- * ### ÉTAPE 6 : Points clés à respecter
- * 
- * ✅ Relations Prisma :
- * - Une Ligne = 1 record avec numero unique
- * - Un Sens = unique par (ligneId, nom)
- * - Un Service = date + heureDebut + heureFin par Sens
- * 
- * ✅ Validation :
- * - Tous les champs requis doivent être présents
- * - Les horaires doivent être au format HHhMM
- * - Les jours doivent utiliser le format "L; M; M; J; V; S; D"
- * 
- * ✅ Gestion des erreurs :
- * - Continuez l'import même si une ligne échoue
- * - Loggez les erreurs pour correction
- * - Afficher un résumé final (compteurs)
- * 
- * ### ÉTAPE 7 : Personnalisation pour vos données
- * 
- * Récupérez vos données depuis :
- * - CSV (parse avec csv-parser ou manual split)
- * - API externe (fetch + JSON parsing)
- * - Base de données (SQL queries)
- * - Fichier JSON local
- * 
- * Transformez-les au format de LIGNES_DATA.
- * 
- * ═══════════════════════════════════════════════════════════════════════════
- * 🔧 TEMPLATE DE CODE À ADAPTER
- * ═══════════════════════════════════════════════════════════════════════════
+ * Import LIGNES + SENS + SERVICES depuis les PDF (IDFM/TISSE etc.)
+ * Compatible Node 18-22 en ESM (type:module) via createRequire.
+ *
+ * - Construit LIGNES_DATA automatiquement à partir des PDF
+ * - Puis exécute l'import Prisma (upsert ligne, upsert sens, create services)
+ *
+ * Usage:
+ *   node scripts/import-lignes-from-pdfs.js --dir ./scripts/pdfs --days 60 --dry-run --export-json
+ *   node scripts/import-lignes-from-pdfs.js --dir ./scripts/pdfs --days 60
  */
 
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
 import { PrismaClient } from "@prisma/client";
+
+// ✅ pdf-parse est CommonJS -> on le charge ainsi en ESM (Node 22 OK)
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 const prisma = new PrismaClient();
 
-// ==================== DONNÉES À IMPORTER ====================
-// 👇 REMPLACER avec vos données réelles
-const LIGNES_DATA = [
-  {
-    "numero": "4201",
-    "nom": "LIGNE_4201",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "05h45",
-    "heureFin": "23h19",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
-        "services": [
-          { "heureDebut": "05h45", "heureFin": "10h11" },
-          { "heureDebut": "12h00", "heureFin": "17h55" },
-          { "heureDebut": "20h50", "heureFin": "23h19" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
-        "services": [
-          { "heureDebut": "05h52", "heureFin": "06h41" },
-          { "heureDebut": "09h21", "heureFin": "12h11" },
-          { "heureDebut": "15h10", "heureFin": "21h31" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
-        "services": [
-          { "heureDebut": "06h38", "heureFin": "11h48" },
-          { "heureDebut": "14h29", "heureFin": "18h21" },
-          { "heureDebut": "20h50", "heureFin": "23h19" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
-        "services": [
-          { "heureDebut": "07h21", "heureFin": "11h11" },
-          { "heureDebut": "14h21", "heureFin": "19h31" },
-          { "heureDebut": "21h31", "heureFin": "21h31" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de Corbeil-Essonnes - E. Zola → Rue Berlioz",
-        "services": [
-          { "heureDebut": "07h35", "heureFin": "12h48" },
-          { "heureDebut": "14h29", "heureFin": "19h41" },
-          { "heureDebut": "20h53", "heureFin": "23h19" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "Rue Berlioz → Gare de Corbeil-Essonnes - E. Zola",
-        "services": [
-          { "heureDebut": "07h41", "heureFin": "12h11" },
-          { "heureDebut": "15h10", "heureFin": "20h30" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4202",
-    "nom": "LIGNE_4202",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "04h43",
-    "heureFin": "22h44",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de Corbeil-Essonnes → ...",
-        "services": [
-          { "heureDebut": "04h43", "heureFin": "10h05" },
-          { "heureDebut": "12h03", "heureFin": "16h50" },
-          { "heureDebut": "18h44", "heureFin": "22h44" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de Corbeil-Essonnes",
-        "services": [
-          { "heureDebut": "05h23", "heureFin": "10h14" },
-          { "heureDebut": "12h23", "heureFin": "16h44" },
-          { "heureDebut": "18h23", "heureFin": "22h23" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de Corbeil-Essonnes → ...",
-        "services": [
-          { "heureDebut": "06h03", "heureFin": "12h05" },
-          { "heureDebut": "14h03", "heureFin": "20h05" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "... → Gare de Corbeil-Essonnes",
-        "services": [
-          { "heureDebut": "06h23", "heureFin": "12h23" },
-          { "heureDebut": "14h23", "heureFin": "20h23" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de Corbeil-Essonnes → ...",
-        "services": [
-          { "heureDebut": "07h03", "heureFin": "13h05" },
-          { "heureDebut": "15h03", "heureFin": "21h05" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "... → Gare de Corbeil-Essonnes",
-        "services": [
-          { "heureDebut": "07h23", "heureFin": "13h23" },
-          { "heureDebut": "15h23", "heureFin": "21h23" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4203",
-    "nom": "LIGNE_4203",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "05h53",
-    "heureFin": "00h53",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "05h53", "heureFin": "10h53" },
-          { "heureDebut": "12h53", "heureFin": "17h53" },
-          { "heureDebut": "19h53", "heureFin": "00h53" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "06h03", "heureFin": "11h03" },
-          { "heureDebut": "13h03", "heureFin": "18h03" },
-          { "heureDebut": "20h03", "heureFin": "00h03" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "07h53", "heureFin": "12h53" },
-          { "heureDebut": "14h53", "heureFin": "19h53" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "08h03", "heureFin": "13h03" },
-          { "heureDebut": "15h03", "heureFin": "20h03" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "08h53", "heureFin": "13h53" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "09h03", "heureFin": "14h03" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4205",
-    "nom": "LIGNE_4205",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "05h19",
-    "heureFin": "00h28",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "05h19", "heureFin": "10h28" },
-          { "heureDebut": "12h19", "heureFin": "17h28" },
-          { "heureDebut": "19h19", "heureFin": "00h28" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "05h28", "heureFin": "10h19" },
-          { "heureDebut": "12h28", "heureFin": "17h19" },
-          { "heureDebut": "19h28", "heureFin": "00h19" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "06h19", "heureFin": "12h28" },
-          { "heureDebut": "14h19", "heureFin": "20h28" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "06h28", "heureFin": "12h19" },
-          { "heureDebut": "14h28", "heureFin": "20h19" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "07h19", "heureFin": "13h28" },
-          { "heureDebut": "15h19", "heureFin": "21h28" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "07h28", "heureFin": "13h19" },
-          { "heureDebut": "15h28", "heureFin": "21h19" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4206",
-    "nom": "LIGNE_4206",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "05h15",
-    "heureFin": "21h07",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "05h15", "heureFin": "10h07" },
-          { "heureDebut": "12h15", "heureFin": "17h07" },
-          { "heureDebut": "18h15", "heureFin": "21h07" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "05h25", "heureFin": "10h15" },
-          { "heureDebut": "12h25", "heureFin": "17h15" },
-          { "heureDebut": "18h25", "heureFin": "21h05" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "06h15", "heureFin": "12h07" },
-          { "heureDebut": "14h15", "heureFin": "20h07" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "06h25", "heureFin": "12h15" },
-          { "heureDebut": "14h25", "heureFin": "20h05" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "07h15", "heureFin": "13h07" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "07h25", "heureFin": "13h05" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4212",
-    "nom": "LIGNE_4212",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "05h59",
-    "heureFin": "23h25",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "05h59", "heureFin": "10h25" },
-          { "heureDebut": "12h59", "heureFin": "17h25" },
-          { "heureDebut": "19h59", "heureFin": "23h25" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "06h10", "heureFin": "10h59" },
-          { "heureDebut": "13h10", "heureFin": "17h59" },
-          { "heureDebut": "20h10", "heureFin": "23h10" }
-        ]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "07h59", "heureFin": "13h25" },
-          { "heureDebut": "15h59", "heureFin": "21h25" }
-        ]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "08h10", "heureFin": "13h10" },
-          { "heureDebut": "16h10", "heureFin": "21h10" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "08h59", "heureFin": "14h25" }
-        ]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "09h10", "heureFin": "14h10" }
-        ]
-      }
-    ]
-  },
-  {
-    "numero": "4213",
-    "nom": "LIGNE_4213",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "06h58",
-    "heureFin": "18h01",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Gare de ... → ...",
-        "services": [
-          { "heureDebut": "06h58", "heureFin": "12h01" },
-          { "heureDebut": "13h58", "heureFin": "18h01" }
-        ]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "... → Gare de ...",
-        "services": [
-          { "heureDebut": "07h10", "heureFin": "12h10" },
-          { "heureDebut": "14h10", "heureFin": "18h10" }
-        ]
-      },
-      { "nom": "Samedi Aller", "jours": "S", "direction": "Gare de ... → ...", "services": [] },
-      { "nom": "Samedi Retour", "jours": "S", "direction": "... → Gare de ...", "services": [] },
-      { "nom": "Dimanche & fériés Aller", "jours": "D", "direction": "Gare de ... → ...", "services": [] },
-      { "nom": "Dimanche & fériés Retour", "jours": "D", "direction": "... → Gare de ...", "services": [] }
-    ]
-  },
-  {
-    "numero": "N139",
-    "nom": "NOCTILIEN_N139",
-    "type": "autobus",
-    "jours": "L; M; M; J; V; S; D",
-    "heureDebut": "00h10",
-    "heureFin": "07h16",
-    "sens": [
-      {
-        "nom": "Semaine Aller",
-        "jours": "L; M; M; J; V",
-        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
-        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
-      },
-      {
-        "nom": "Semaine Retour",
-        "jours": "L; M; M; J; V",
-        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
-        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
-      },
-      {
-        "nom": "Samedi Aller",
-        "jours": "S",
-        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
-        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
-      },
-      {
-        "nom": "Samedi Retour",
-        "jours": "S",
-        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
-        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
-      },
-      {
-        "nom": "Dimanche & fériés Aller",
-        "jours": "D",
-        "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
-        "services": [{ "heureDebut": "01h35", "heureFin": "07h16" }]
-      },
-      {
-        "nom": "Dimanche & fériés Retour",
-        "jours": "D",
-        "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
-        "services": [{ "heureDebut": "00h10", "heureFin": "05h56" }]
-      }
-    ]
-  }
-];
+// ---------------- CLI ----------------
+function getArg(name, def = null) {
+  const idx = process.argv.indexOf(name);
+  if (idx === -1) return def;
+  const v = process.argv[idx + 1];
+  return v === undefined ? true : v;
+}
 
-// ==================== HELPERS ====================
+const DIR = getArg("--dir", path.join(process.cwd(), "scripts", "pdfs"));
+const DAYS_AHEAD = parseInt(getArg("--days", "60"), 10);
+const DRY_RUN = process.argv.includes("--dry-run");
+const EXPORT_JSON = process.argv.includes("--export-json");
+
+// ---------------- Helpers temps/jours ----------------
 
 /** "06h30" -> "06:30" */
 function parseHeure(heureStr) {
@@ -615,9 +47,17 @@ function parseHeure(heureStr) {
   return `${hh}:${mm}`;
 }
 
+/** "7:05" -> "07h05" */
+function hhmmToHHhMM(hhmm) {
+  const m = String(hhmm).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return `${String(parseInt(m[1], 10)).padStart(2, "0")}h${m[2]}`;
+}
+
 /**
  * Jours: "L; M; M; J; V" (2 M = mardi + mercredi)
  * "S" samedi, "D" dimanche
+ * Supporte aussi : "LMJV", "LMJVS", "LMJVD" etc.
  */
 function parseJours(joursStr) {
   const jours = {
@@ -631,7 +71,25 @@ function parseJours(joursStr) {
   };
   if (!joursStr) return jours;
 
-  const arr = joursStr
+  const s = String(joursStr).trim().toUpperCase();
+
+  // format compact : LMJV...
+  if (/^[LMJVS D]+$/.test(s.replace(/\s+/g, "")) && s.includes("L")) {
+    const c = s.replace(/\s+/g, "");
+    if (c.includes("L")) jours.lundi = true;
+    if (c.includes("M")) {
+      // sur compact "M" on active mardi+mercredi (faute d’info)
+      jours.mardi = true;
+      jours.mercredi = true;
+    }
+    if (c.includes("J")) jours.jeudi = true;
+    if (c.includes("V")) jours.vendredi = true;
+    if (c.includes("S")) jours.samedi = true;
+    if (c.includes("D")) jours.dimanche = true;
+    return jours;
+  }
+
+  const arr = s
     .split(";")
     .map((x) => x.trim().toUpperCase())
     .filter(Boolean);
@@ -642,12 +100,7 @@ function parseJours(joursStr) {
     else if (j === "M") {
       mCount++;
       if (mCount === 1) jours.mardi = true;
-      else if (mCount === 2) jours.mercredi = true;
-      else {
-        // si jamais on a 3e M par erreur, on active mardi+mercredi quand même
-        jours.mardi = true;
-        jours.mercredi = true;
-      }
+      else jours.mercredi = true;
     } else if (j === "J") jours.jeudi = true;
     else if (j === "V") jours.vendredi = true;
     else if (j === "S") jours.samedi = true;
@@ -658,32 +111,155 @@ function parseJours(joursStr) {
 }
 
 /**
- * Génère les dates de service pour la semaine courante (lundi -> dimanche)
+ * Génère les dates de service sur les N prochains jours
  * en fonction du calendrier booléen.
  */
-function generateServiceDates(calendrier) {
+function generateServiceDatesForward(calendrier, daysAhead = 60) {
   const dates = [];
-  const today = new Date();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
 
-  const dayOfWeek = today.getDay(); // 0=dimanche ... 6=samedi
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const keyOf = (d) => {
+    // JS: 0=dimanche ... 6=samedi
+    const k = d.getDay();
+    if (k === 0) return "dimanche";
+    if (k === 1) return "lundi";
+    if (k === 2) return "mardi";
+    if (k === 3) return "mercredi";
+    if (k === 4) return "jeudi";
+    if (k === 5) return "vendredi";
+    return "samedi";
+  };
 
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday);
-  monday.setHours(0, 0, 0, 0);
-
-  const order = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-
-  for (let i = 0; i < 7; i++) {
-    const k = order[i];
-    if (calendrier[k]) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      dates.push(d);
-    }
+  for (let i = 0; i < daysAhead; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    if (calendrier[keyOf(d)]) dates.push(d);
   }
   return dates;
 }
+
+// ---------------- Helpers PDF parsing ----------------
+
+function normalizeSpaces(s) {
+  return String(s).replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function splitPages(rawText) {
+  const pages = rawText.split("\f").map((p) => p.trim()).filter(Boolean);
+  return pages.length ? pages : [rawText];
+}
+
+function detectLineNumber(fileName, rawText) {
+  // priorité: nom fichier (ex: 4201.pdf, 4270_scolaire.pdf, N139.pdf)
+  const base = path.basename(fileName).toUpperCase();
+  let m = base.match(/\b(N\d+|\d{4})\b/);
+  if (m) return m[1];
+
+  // fallback: texte
+  m = String(rawText).toUpperCase().match(/\b(N\d+|\d{4})\b/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Détecte le type de jour d'après la page.
+ * Renvoie { key, label, joursStr }
+ * key utilisé pour classer dans les 6 sens max (semaine/samedi/dimanche)
+ */
+function detectDayType(pageText) {
+  const t = pageText.toLowerCase();
+
+  // dimanches / fêtes
+  if (t.includes("dimanche") || t.includes("féri") || t.includes("fete") || t.includes("fêtes")) {
+    return { key: "DIM", label: "Dimanche & fériés", joursStr: "D" };
+  }
+  // samedi
+  if (t.includes("samedi")) {
+    return { key: "SAM", label: "Samedi", joursStr: "S" };
+  }
+  // semaine (souvent "Du lundi au vendredi")
+  if (t.includes("du lundi au vendredi")) {
+    return { key: "SEM", label: "Semaine", joursStr: "L; M; M; J; V" };
+  }
+
+  // fallback : on traite comme semaine
+  return { key: "SEM", label: "Semaine", joursStr: "L; M; M; J; V" };
+}
+
+/**
+ * Extrait une "direction" (terminus A -> terminus B) à partir de la table :
+ * - on récupère la première ligne avec des heures => arrêt A
+ * - et la dernière ligne avec des heures => arrêt B
+ */
+function extractTerminusFromPage(pageText) {
+  const lines = pageText.split("\n").map(normalizeSpaces).filter(Boolean);
+
+  const timeRe = /\b\d{1,2}:\d{2}\b/;
+  const rows = lines.filter((l) => timeRe.test(l));
+
+  if (rows.length < 2) return null;
+
+  const firstRow = rows[0];
+  const lastRow = rows[rows.length - 1];
+
+  // arrêt = texte avant la première heure
+  const firstStop = normalizeSpaces(firstRow.split(timeRe)[0] || "");
+  const lastStop = normalizeSpaces(lastRow.split(timeRe)[0] || "");
+
+  if (!firstStop || !lastStop) return null;
+
+  return { a: firstStop, b: lastStop, direction: `${firstStop} → ${lastStop}` };
+}
+
+/**
+ * Extrait les courses (colonnes) :
+ * - pour chaque ligne: on prend la liste des hh:mm
+ * - on transpose en colonnes
+ * - une colonne = une course => depart = 1ère heure, arrivee = dernière heure
+ */
+function extractTripsFromPage(pageText) {
+  const lines = pageText.split("\n").map(normalizeSpaces).filter(Boolean);
+  const timeRe = /\b(\d{1,2}:\d{2})\b/g;
+
+  const rows = [];
+  for (const line of lines) {
+    const times = [];
+    let m;
+    while ((m = timeRe.exec(line)) !== null) times.push(m[1]);
+    if (times.length) rows.push(times);
+  }
+  if (!rows.length) return [];
+
+  const maxCols = Math.max(...rows.map((r) => r.length));
+  const cols = Array.from({ length: maxCols }, () => []);
+
+  for (const r of rows) {
+    for (let i = 0; i < maxCols; i++) cols[i].push(r[i] ?? null);
+  }
+
+  const trips = [];
+  const seen = new Set();
+
+  for (const col of cols) {
+    const first = col.find((x) => x);
+    const last = [...col].reverse().find((x) => x);
+    if (!first || !last) continue;
+
+    const depart = hhmmToHHhMM(first);
+    const arrivee = hhmmToHHhMM(last);
+    if (!depart || !arrivee) continue;
+
+    const key = `${depart}-${arrivee}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    trips.push({ heureDebut: depart, heureFin: arrivee });
+  }
+
+  return trips;
+}
+
+// ---------------- Validation / contraintes ----------------
 
 function assertMaxSens(ligneData) {
   if (ligneData?.sens?.length > 6) {
@@ -697,9 +273,175 @@ function ensureRequiredStrings(ligneData) {
   if (!ligneData.type) throw new Error(`type manquant pour la ligne ${ligneData.numero}`);
 }
 
-// ==================== IMPORT ====================
+// ---------------- Construction LIGNES_DATA depuis PDF ----------------
 
-async function importLignes() {
+/**
+ * Important: on limite volontairement à 6 sens max:
+ * - Semaine Aller
+ * - Semaine Retour
+ * - Samedi Aller
+ * - Samedi Retour
+ * - Dimanche & fériés Aller
+ * - Dimanche & fériés Retour
+ *
+ * Les PDF "scolaires" (LMJV) restent dans "Semaine".
+ * Les circuits multiples (ex: 4280) sont fusionnés dans les services du même sens/jour.
+ */
+function buildLignesDataFromPdfs(pdfDir) {
+  if (!fs.existsSync(pdfDir)) throw new Error(`Dossier introuvable: ${pdfDir}`);
+
+  const files = fs.readdirSync(pdfDir).filter((f) => f.toLowerCase().endsWith(".pdf"));
+  if (!files.length) throw new Error(`Aucun PDF dans ${pdfDir}`);
+
+  const linesMap = new Map(); // numero -> { ...ligne, sensMap }
+
+  return { files, linesMap };
+}
+
+async function parseAllPdfsIntoLignesData(pdfDir) {
+  const { files, linesMap } = buildLignesDataFromPdfs(pdfDir);
+
+  for (const f of files) {
+    const full = path.join(pdfDir, f);
+    const buf = fs.readFileSync(full);
+    const parsed = await pdfParse(buf);
+    const rawText = parsed.text || "";
+
+    const numero = detectLineNumber(f, rawText);
+    if (!numero) {
+      console.warn(`⚠️  Numéro introuvable dans ${f} -> ignoré`);
+      continue;
+    }
+
+    if (!linesMap.has(numero)) {
+      linesMap.set(numero, {
+        numero,
+        nom: numero.startsWith("N") ? `NOCTILIEN_${numero}` : `LIGNE_${numero}`,
+        type: "autobus",
+        jours: "L; M; M; J; V; S; D",
+        heureDebut: null,
+        heureFin: null,
+        // sensMap: key = `${dayKey}_${ALLER|RETOUR}`
+        sensMap: new Map()
+      });
+    }
+
+    const ligne = linesMap.get(numero);
+
+    const pages = splitPages(rawText);
+    for (const p of pages) {
+      const day = detectDayType(p);
+      const term = extractTerminusFromPage(p);
+      const trips = extractTripsFromPage(p);
+
+      if (!trips.length || !term) continue;
+
+      // Heuristique Aller/Retour :
+      // Si on a déjà un "ALLER" existant pour ce dayKey, et que la direction est inverse => RETOUR.
+      // Sinon on classe le premier sens rencontré comme ALLER.
+      const dayKey = day.key;
+
+      const allerKey = `${dayKey}_ALLER`;
+      const retourKey = `${dayKey}_RETOUR`;
+
+      const existingAller = ligne.sensMap.get(allerKey);
+      const existingRetour = ligne.sensMap.get(retourKey);
+
+      const isReverseOf = (dir1, dir2) => {
+        if (!dir1 || !dir2) return false;
+        const [a1, b1] = dir1.split("→").map((x) => normalizeSpaces(x));
+        const [a2, b2] = dir2.split("→").map((x) => normalizeSpaces(x));
+        return a1 && b1 && a2 && b2 && a1 === b2 && b1 === a2;
+      };
+
+      let bucketKey = allerKey;
+      if (existingAller && isReverseOf(existingAller.direction, term.direction)) bucketKey = retourKey;
+      else if (existingRetour && isReverseOf(existingRetour.direction, term.direction)) bucketKey = allerKey;
+      else if (existingAller && existingAller.direction === term.direction) bucketKey = allerKey;
+      else if (existingRetour && existingRetour.direction === term.direction) bucketKey = retourKey;
+      else {
+        // si aller existe déjà mais pas retour, on place sur retour si direction différente
+        if (existingAller && !existingRetour && existingAller.direction !== term.direction) bucketKey = retourKey;
+      }
+
+      if (!ligne.sensMap.has(bucketKey)) {
+        const isAller = bucketKey.endsWith("_ALLER");
+        const sensNom = `${day.label} ${isAller ? "Aller" : "Retour"}`;
+        ligne.sensMap.set(bucketKey, {
+          nom: sensNom,
+          jours: day.joursStr,
+          direction: term.direction,
+          services: []
+        });
+      }
+
+      const sens = ligne.sensMap.get(bucketKey);
+
+      // merge services (dédoublonne)
+      const seen = new Set(sens.services.map((s) => `${s.heureDebut}-${s.heureFin}`));
+      for (const t of trips) {
+        const key = `${t.heureDebut}-${t.heureFin}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        sens.services.push(t);
+      }
+
+      // calc heureDebut/heureFin global ligne (min/max)
+      for (const t of trips) {
+        if (!ligne.heureDebut) ligne.heureDebut = t.heureDebut;
+        if (!ligne.heureFin) ligne.heureFin = t.heureFin;
+
+        // min heureDebut
+        if (ligne.heureDebut && t.heureDebut) {
+          if (parseHeure(t.heureDebut) < parseHeure(ligne.heureDebut)) ligne.heureDebut = t.heureDebut;
+        }
+        // max heureFin (attention minuit: on ne gère pas ici, on conserve max lexical simple)
+        if (ligne.heureFin && t.heureFin) {
+          if (parseHeure(t.heureFin) > parseHeure(ligne.heureFin)) ligne.heureFin = t.heureFin;
+        }
+      }
+    }
+  }
+
+  // transforme map -> array LIGNES_DATA
+  const LIGNES_DATA = [];
+  for (const ligne of linesMap.values()) {
+    const sens = Array.from(ligne.sensMap.values());
+
+    // on respecte max 6 sens (normalement assuré par notre bucket SEM/SAM/DIM x aller/retour)
+    const final = {
+      numero: ligne.numero,
+      nom: ligne.nom,
+      type: ligne.type,
+      jours: ligne.jours,
+      heureDebut: ligne.heureDebut || "06h00",
+      heureFin: ligne.heureFin || "20h00",
+      sens: sens
+        .map((s) => ({
+          nom: s.nom,
+          jours: s.jours,
+          direction: s.direction,
+          services: s.services.sort((a, b) => (a.heureDebut > b.heureDebut ? 1 : -1))
+        }))
+        .slice(0, 6)
+    };
+
+    LIGNES_DATA.push(final);
+  }
+
+  // tri numérique (N139 à la fin)
+  LIGNES_DATA.sort((a, b) => {
+    const an = a.numero.startsWith("N") ? 999999 : parseInt(a.numero, 10);
+    const bn = b.numero.startsWith("N") ? 999999 : parseInt(b.numero, 10);
+    return an - bn;
+  });
+
+  return LIGNES_DATA;
+}
+
+// ---------------- Import Prisma (ta logique, améliorée en jours à venir) ----------------
+
+async function importLignes(LIGNES_DATA) {
   console.log("🚀 Démarrage import lignes...\n");
 
   let totalLignes = 0;
@@ -718,35 +460,36 @@ async function importLignes() {
         const hDeb = parseHeure(ligneData.heureDebut);
         const hFin = parseHeure(ligneData.heureFin);
 
-        // 1) upsert ligne (1 record par numero)
-        const ligne = await prisma.ligne.upsert({
-          where: { numero: ligneData.numero },
-          create: {
-            numero: ligneData.numero,
-            nom: ligneData.nom,
-            typesVehicules: JSON.stringify([ligneData.type]),
-            heureDebut: hDeb,
-            heureFin: hFin,
-            // calendrierJson global optionnel : on met "tous jours" par défaut
-            calendrierJson: JSON.stringify({
-              lundi: true,
-              mardi: true,
-              mercredi: true,
-              jeudi: true,
-              vendredi: true,
-              samedi: true,
-              dimanche: true
-            }),
-            statut: "Actif"
-          },
-          update: {
-            nom: ligneData.nom,
-            typesVehicules: JSON.stringify([ligneData.type]),
-            heureDebut: hDeb,
-            heureFin: hFin,
-            statut: "Actif"
-          }
-        });
+        // 1) upsert ligne
+        const ligne = DRY_RUN
+          ? { id: "DRY", numero: ligneData.numero }
+          : await prisma.ligne.upsert({
+              where: { numero: ligneData.numero },
+              create: {
+                numero: ligneData.numero,
+                nom: ligneData.nom,
+                typesVehicules: JSON.stringify([ligneData.type]),
+                heureDebut: hDeb,
+                heureFin: hFin,
+                calendrierJson: JSON.stringify({
+                  lundi: true,
+                  mardi: true,
+                  mercredi: true,
+                  jeudi: true,
+                  vendredi: true,
+                  samedi: true,
+                  dimanche: true
+                }),
+                statut: "Actif"
+              },
+              update: {
+                nom: ligneData.nom,
+                typesVehicules: JSON.stringify([ligneData.type]),
+                heureDebut: hDeb,
+                heureFin: hFin,
+                statut: "Actif"
+              }
+            });
 
         totalLignes++;
 
@@ -755,30 +498,31 @@ async function importLignes() {
           if (!sensData.nom) throw new Error(`Sens sans nom sur ${ligneData.numero}`);
           if (!sensData.jours) throw new Error(`Sens ${sensData.nom} sans jours sur ${ligneData.numero}`);
 
-          const sens = await prisma.sens.upsert({
-            where: {
-              // IMPORTANT: ton unique (ligneId, nom) doit exister en Prisma
-              ligneId_nom: { ligneId: ligne.id, nom: sensData.nom }
-            },
-            create: {
-              ligneId: ligne.id,
-              nom: sensData.nom,
-              direction: sensData.direction || null,
-              statut: "Actif"
-            },
-            update: {
-              direction: sensData.direction || null,
-              statut: "Actif"
-            }
-          });
+          const sens = DRY_RUN
+            ? { id: "DRY_SENS" }
+            : await prisma.sens.upsert({
+                where: {
+                  ligneId_nom: { ligneId: ligne.id, nom: sensData.nom }
+                },
+                create: {
+                  ligneId: ligne.id,
+                  nom: sensData.nom,
+                  direction: sensData.direction || null,
+                  statut: "Actif"
+                },
+                update: {
+                  direction: sensData.direction || null,
+                  statut: "Actif"
+                }
+              });
 
           totalSens++;
 
-          // Dates par calendrier DU SENS
+          // Dates par calendrier DU SENS -> N jours à venir
           const calendrier = parseJours(sensData.jours);
-          const serviceDates = generateServiceDates(calendrier);
+          const serviceDates = generateServiceDatesForward(calendrier, DAYS_AHEAD);
 
-          // 3) services
+          // 3) services (une course = un service)
           for (const s of sensData.services || []) {
             const heureDebut = parseHeure(s.heureDebut);
             const heureFin = parseHeure(s.heureFin);
@@ -791,27 +535,31 @@ async function importLignes() {
               const dayStart = new Date(serviceDate.getFullYear(), serviceDate.getMonth(), serviceDate.getDate());
               const dayEnd = new Date(serviceDate.getFullYear(), serviceDate.getMonth(), serviceDate.getDate() + 1);
 
-              const existing = await prisma.service.findFirst({
-                where: {
-                  ligneId: ligne.id,
-                  sensId: sens.id,
-                  date: { gte: dayStart, lt: dayEnd },
-                  heureDebut,
-                  heureFin
-                }
-              });
+              const existing = DRY_RUN
+                ? null
+                : await prisma.service.findFirst({
+                    where: {
+                      ligneId: ligne.id,
+                      sensId: sens.id,
+                      date: { gte: dayStart, lt: dayEnd },
+                      heureDebut,
+                      heureFin
+                    }
+                  });
 
               if (!existing) {
-                await prisma.service.create({
-                  data: {
-                    ligneId: ligne.id,
-                    sensId: sens.id,
-                    date: serviceDate,
-                    heureDebut,
-                    heureFin,
-                    statut: "Planifiée"
-                  }
-                });
+                if (!DRY_RUN) {
+                  await prisma.service.create({
+                    data: {
+                      ligneId: ligne.id,
+                      sensId: sens.id,
+                      date: serviceDate,
+                      heureDebut,
+                      heureFin,
+                      statut: "Planifiée"
+                    }
+                  });
+                }
                 totalServices++;
               }
             }
@@ -831,7 +579,7 @@ async function importLignes() {
     console.log("=".repeat(60));
     console.log(`📌 Lignes upsert: ${totalLignes}`);
     console.log(`🧭 Sens upsert: ${totalSens}`);
-    console.log(`🚌 Services créés: ${totalServices}`);
+    console.log(`🚌 Services créés: ${totalServices}${DRY_RUN ? " (dry-run)" : ""}`);
     console.log(`⚠️  Erreurs: ${errors.length}`);
     if (errors.length) {
       console.log("\nDétails erreurs :");
@@ -842,7 +590,25 @@ async function importLignes() {
   }
 }
 
-importLignes().catch((e) => {
+// ---------------- Main ----------------
+
+async function main() {
+  console.log(`📁 Dossier PDF: ${DIR}`);
+  console.log(`📆 Génération services: ${DAYS_AHEAD} jours`);
+  console.log(DRY_RUN ? "🧪 DRY-RUN (aucune écriture BD)\n" : "🧩 Import BD activé\n");
+
+  const LIGNES_DATA = await parseAllPdfsIntoLignesData(DIR);
+
+  if (EXPORT_JSON) {
+    const outPath = path.join(DIR, "_generated_LIGNES_DATA.json");
+    fs.writeFileSync(outPath, JSON.stringify(LIGNES_DATA, null, 2), "utf-8");
+    console.log(`🧾 JSON généré: ${outPath}\n`);
+  }
+
+  await importLignes(LIGNES_DATA);
+}
+
+main().catch((e) => {
   console.error("💥 Erreur fatale:", e);
   process.exit(1);
 });
