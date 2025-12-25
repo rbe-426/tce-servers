@@ -1,0 +1,236 @@
+[
+  {
+    "numero": "4201",
+    "nom": "LIGNE_4201",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4202",
+    "nom": "LIGNE_4202",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4203",
+    "nom": "LIGNE_4203",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4205",
+    "nom": "LIGNE_4205",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4206",
+    "nom": "LIGNE_4206",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4212",
+    "nom": "LIGNE_4212",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4214",
+    "nom": "LIGNE_4214",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4215",
+    "nom": "LIGNE_4215",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4216",
+    "nom": "LIGNE_4216",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4217",
+    "nom": "LIGNE_4217",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4218",
+    "nom": "LIGNE_4218",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4219",
+    "nom": "LIGNE_4219",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4220",
+    "nom": "LIGNE_4220",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4221",
+    "nom": "LIGNE_4221",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4222",
+    "nom": "LIGNE_4222",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4223",
+    "nom": "LIGNE_4223",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4230",
+    "nom": "LIGNE_4230",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4232",
+    "nom": "LIGNE_4232",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4233",
+    "nom": "LIGNE_4233",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4240",
+    "nom": "LIGNE_4240",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4241",
+    "nom": "LIGNE_4241",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4242",
+    "nom": "LIGNE_4242",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4243",
+    "nom": "LIGNE_4243",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4244",
+    "nom": "LIGNE_4244",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4245",
+    "nom": "LIGNE_4245",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4246",
+    "nom": "LIGNE_4246",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  }
+]
