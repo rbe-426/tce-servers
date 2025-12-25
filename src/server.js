@@ -467,7 +467,7 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
 
     // === NOUVELLES RÈGLES DE PLANNING ===
     // Vérifier les conflits de véhicule et les règles d'amplitude
-    const serviceDate = new Date(service.dateService);
+    const serviceDate = new Date(service.date);
     const serviceHourStart = parseInt(service.heureDebut.split(':')[0]);
     const serviceHourEnd = parseInt(service.heureFin.split(':')[0]);
     
@@ -574,7 +574,7 @@ app.get('/api/services/:serviceId/assignable-conductors', async (req, res) => {
 
     // === RÈGLES D'AMPLITUDE ===
     // Vérifier l'amplitude de travail (max 10h/jour généralement)
-    const serviceDate = new Date(service.dateService);
+    const serviceDate = new Date(service.date);
     const [serviceHourStart, serviceMinStart] = service.heureDebut.split(':').map(Number);
     const [serviceHourEnd, serviceMinEnd] = service.heureFin.split(':').map(Number);
     const serviceDuration = (serviceHourEnd - serviceHourStart) + (serviceMinEnd - serviceMinStart) / 60;
