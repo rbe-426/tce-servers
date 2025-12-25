@@ -8,7 +8,7 @@
     "heureFin": "23h19",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Corbeil - Gare → Rue Berlioz",
         "services": [
@@ -18,7 +18,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Rue Berlioz → Corbeil - Gare",
         "services": [
@@ -28,7 +28,7 @@
         ]
       },
       {
-        "nom": "Samedi Aller",
+        "nom": "Aller Samedi",
         "jours": "S",
         "direction": "Corbeil - Gare → Rue Berlioz",
         "services": [
@@ -38,7 +38,7 @@
         ]
       },
       {
-        "nom": "Samedi Retour",
+        "nom": "Retour Samedi",
         "jours": "S",
         "direction": "Rue Berlioz → Corbeil - Gare",
         "services": [
@@ -47,7 +47,7 @@
         ]
       },
       {
-        "nom": "Dimanche Aller",
+        "nom": "Aller Dimanche",
         "jours": "D",
         "direction": "Corbeil - Gare → Rue Berlioz",
         "services": [
@@ -56,7 +56,7 @@
         ]
       },
       {
-        "nom": "Dimanche Retour",
+        "nom": "Retour Dimanche",
         "jours": "D",
         "direction": "Rue Berlioz → Corbeil - Gare",
         "services": [
@@ -75,7 +75,7 @@
     "heureFin": "00h53",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Départ → Arrivée",
         "services": [
@@ -85,7 +85,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Arrivée → Départ",
         "services": [
@@ -95,7 +95,7 @@
         ]
       },
       {
-        "nom": "Samedi Aller",
+        "nom": "Aller Samedi",
         "jours": "S",
         "direction": "Départ → Arrivée",
         "services": [
@@ -104,7 +104,7 @@
         ]
       },
       {
-        "nom": "Samedi Retour",
+        "nom": "Retour Samedi",
         "jours": "S",
         "direction": "Arrivée → Départ",
         "services": [
@@ -113,7 +113,7 @@
         ]
       },
       {
-        "nom": "Dimanche Aller",
+        "nom": "Aller Dimanche",
         "jours": "D",
         "direction": "Départ → Arrivée",
         "services": [
@@ -121,7 +121,7 @@
         ]
       },
       {
-        "nom": "Dimanche Retour",
+        "nom": "Retour Dimanche",
         "jours": "D",
         "direction": "Arrivée → Départ",
         "services": [
@@ -139,7 +139,7 @@
     "heureFin": "00h28",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Départ → Arrivée",
         "services": [
@@ -149,7 +149,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Arrivée → Départ",
         "services": [
@@ -159,7 +159,7 @@
         ]
       },
       {
-        "nom": "Samedi Aller",
+        "nom": "Aller Samedi",
         "jours": "S",
         "direction": "Départ → Arrivée",
         "services": [
@@ -168,7 +168,7 @@
         ]
       },
       {
-        "nom": "Samedi Retour",
+        "nom": "Retour Samedi",
         "jours": "S",
         "direction": "Arrivée → Départ",
         "services": [
@@ -177,7 +177,7 @@
         ]
       },
       {
-        "nom": "Dimanche Aller",
+        "nom": "Aller Dimanche",
         "jours": "D",
         "direction": "Départ → Arrivée",
         "services": [
@@ -186,7 +186,7 @@
         ]
       },
       {
-        "nom": "Dimanche Retour",
+        "nom": "Retour Dimanche",
         "jours": "D",
         "direction": "Arrivée → Départ",
         "services": [
@@ -205,7 +205,7 @@
     "heureFin": "21h07",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Départ → Arrivée",
         "services": [
@@ -215,7 +215,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Arrivée → Départ",
         "services": [
@@ -225,7 +225,7 @@
         ]
       },
       {
-        "nom": "Samedi Aller",
+        "nom": "Aller Samedi",
         "jours": "S",
         "direction": "Départ → Arrivée",
         "services": [
@@ -234,7 +234,7 @@
         ]
       },
       {
-        "nom": "Samedi Retour",
+        "nom": "Retour Samedi",
         "jours": "S",
         "direction": "Arrivée → Départ",
         "services": [
@@ -243,7 +243,7 @@
         ]
       },
       {
-        "nom": "Dimanche Aller",
+        "nom": "Aller Dimanche",
         "jours": "D",
         "direction": "Départ → Arrivée",
         "services": [
@@ -251,7 +251,7 @@
         ]
       },
       {
-        "nom": "Dimanche Retour",
+        "nom": "Retour Dimanche",
         "jours": "D",
         "direction": "Arrivée → Départ",
         "services": [
@@ -269,7 +269,7 @@
     "heureFin": "23h25",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Départ → Arrivée",
         "services": [
@@ -279,7 +279,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Arrivée → Départ",
         "services": [
@@ -289,7 +289,7 @@
         ]
       },
       {
-        "nom": "Samedi Aller",
+        "nom": "Aller Samedi",
         "jours": "S",
         "direction": "Départ → Arrivée",
         "services": [
@@ -298,7 +298,7 @@
         ]
       },
       {
-        "nom": "Samedi Retour",
+        "nom": "Retour Samedi",
         "jours": "S",
         "direction": "Arrivée → Départ",
         "services": [
@@ -307,7 +307,7 @@
         ]
       },
       {
-        "nom": "Dimanche Aller",
+        "nom": "Aller Dimanche",
         "jours": "D",
         "direction": "Départ → Arrivée",
         "services": [
@@ -315,7 +315,7 @@
         ]
       },
       {
-        "nom": "Dimanche Retour",
+        "nom": "Retour Dimanche",
         "jours": "D",
         "direction": "Arrivée → Départ",
         "services": [
@@ -333,7 +333,7 @@
     "heureFin": "18h10",
     "sens": [
       {
-        "nom": "Semaine Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V",
         "direction": "Départ → Arrivée",
         "services": [
@@ -342,7 +342,7 @@
         ]
       },
       {
-        "nom": "Semaine Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V",
         "direction": "Arrivée → Départ",
         "services": [
@@ -361,7 +361,7 @@
     "heureFin": "07h16",
     "sens": [
       {
-        "nom": "Tous les jours Aller",
+        "nom": "Aller",
         "jours": "L; M; M; J; V; S; D",
         "direction": "Paris → Corbeil-Essonnes (Chrono exigée)",
         "services": [
@@ -369,7 +369,7 @@
         ]
       },
       {
-        "nom": "Tous les jours Retour",
+        "nom": "Retour",
         "jours": "L; M; M; J; V; S; D",
         "direction": "Corbeil-Essonnes → Paris (Chrono exigée)",
         "services": [
