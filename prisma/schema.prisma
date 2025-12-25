@@ -31,6 +31,8 @@ model Etablissement {
   // Mercatos (mouvements de véhicules)
   mercatoSource         VehicleMercato[]  @relation("MercatoSource")
   mercatoDestination    VehicleMercato[]  @relation("MercatoDestination")
+  mercatosSource        Mercato[]         @relation("MercatoSource2")
+  mercatosDestination   Mercato[]         @relation("MercatoDestination2")
   vehicleNeeds          VehicleNeed[]
   
   // Autorisations inter-dépôts
@@ -72,6 +74,7 @@ model Employe {
   
   // Rôles & Affectations
   roles           EmployeRole[]
+  mercatos        Mercato[]
 
   @@index([poste, statut])
   @@index([email])
@@ -121,6 +124,7 @@ model Vehicle {
   statesHistory     VehicleStateHistory[]
   interventions     Intervention[]
   mercatos          VehicleMercato[]
+  mercatoProposals  Mercato[]
 
   // Relation Etablissement
   etablissementId   String?
@@ -236,6 +240,7 @@ model Ligne {
   services        Service[]
   trajets         Trajet[]
   interDepotAuths InterDepotAuthorization[]
+  mercatos        Mercato[]
 
   @@index([numero, statut])
 }
@@ -788,6 +793,45 @@ model VehicleMercato {
   @@index([statut])
 }
 
+// Modèle générique pour tous les types de mercatos (véhicules, lignes, personnel)
+model Mercato {
+  id                    String   @id @default(cuid())
+  
+  type                  String   @default("VEHICULE") // VEHICULE, LIGNE, PERSONNEL
+  
+  // Relations spécifiques au type
+  vehicleId             String?
+  vehicle               Vehicle?  @relation(fields: [vehicleId], references: [parc], onDelete: SetNull)
+  
+  ligneId               String?
+  ligne                 Ligne?    @relation(fields: [ligneId], references: [id], onDelete: SetNull)
+  
+  agentId               String?
+  agent                 Employe?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  
+  // Dépôts source et destination
+  depotSourceId         String?
+  depotSource           Etablissement? @relation("MercatoSource2", fields: [depotSourceId], references: [id], onDelete: SetNull)
+  
+  depotDestinationId    String
+  depotDestination      Etablissement @relation("MercatoDestination2", fields: [depotDestinationId], references: [id], onDelete: Restrict)
+  
+  // Statut et données communes
+  statut                String   @default("EN_ATTENTE") // EN_ATTENTE, APPROUVÉ, REJETÉ
+  description           String?
+  
+  dateProposee          DateTime
+  dateProposeeBy        String?
+  rejectionReason       String?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([type, statut])
+  @@index([depotSourceId, statut])
+  @@index([depotDestinationId, statut])
+  @@index([statut])
+}
 model VehicleNeed {
   id              String   @id @default(cuid())
   

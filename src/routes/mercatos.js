@@ -1,5 +1,5 @@
 /**
- * Endpoints pour gestion des mercatos (mouvements de véhicules)
+ * Endpoints pour gestion des mercatos (mouvements de véhicules, lignes, personnel)
  * POST/GET/PUT /api/mercatos/...
  */
 
@@ -9,55 +9,96 @@ const prisma = new PrismaClient();
 
 /**
  * POST /api/mercatos
- * Proposer un mouvement de véhicule
+ * Proposer un mercato (véhicule, ligne, ou personnel)
  */
 export async function proposeMercato(req, res) {
   try {
-    const { vehicleParc, depotSourceId, depotDestinationId, dateProposee, motif, notes } = req.body;
+    const {
+      type = 'VEHICULE',
+      vehicleId,
+      ligneId,
+      agentId,
+      depotSourceId,
+      depotDestinationId,
+      dateProposee,
+      description
+    } = req.body;
 
-    // Valider les données
-    if (!vehicleParc || !depotSourceId || !depotDestinationId || !dateProposee) {
-      return res.status(400).json({ error: 'Données manquantes' });
+    // Validation des données requises
+    if (!depotDestinationId) {
+      return res.status(400).json({ error: 'Dépôt destination requis' });
     }
 
-    // Vérifier que le véhicule existe et appartient au dépôt source
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { parc: vehicleParc }
-    });
-
-    if (!vehicle) {
-      return res.status(404).json({ error: 'Véhicule non trouvé' });
+    // Validation spécifique par type
+    if (type === 'VEHICULE' && !vehicleId) {
+      return res.status(400).json({ error: 'Véhicule requis pour un mercato véhicule' });
     }
-
-    if (vehicle.etablissementId !== depotSourceId) {
-      return res.status(400).json({ error: 'Véhicule n\'appartient pas au dépôt source' });
+    if (type === 'LIGNE' && !ligneId) {
+      return res.status(400).json({ error: 'Ligne requise pour un mercato ligne' });
+    }
+    if (type === 'PERSONNEL' && !agentId) {
+      return res.status(400).json({ error: 'Agent requis pour un mercato personnel' });
     }
 
     // Vérifier que les dépôts existent
-    const sourceDepot = await prisma.etablissement.findUnique({
-      where: { id: depotSourceId }
-    });
     const destDepot = await prisma.etablissement.findUnique({
       where: { id: depotDestinationId }
     });
 
-    if (!sourceDepot || !destDepot) {
-      return res.status(404).json({ error: 'Dépôt non trouvé' });
+    if (!destDepot) {
+      return res.status(404).json({ error: 'Dépôt destination non trouvé' });
+    }
+
+    // Vérifications supplémentaires selon le type
+    let sourceDepotId = depotSourceId;
+
+    if (type === 'VEHICULE') {
+      const vehicle = await prisma.vehicle.findUnique({
+        where: { parc: vehicleId }
+      });
+
+      if (!vehicle) {
+        return res.status(404).json({ error: 'Véhicule non trouvé' });
+      }
+
+      sourceDepotId = vehicle.etablissementId;
+    } else if (type === 'LIGNE') {
+      const ligne = await prisma.ligne.findUnique({
+        where: { id: ligneId }
+      });
+
+      if (!ligne) {
+        return res.status(404).json({ error: 'Ligne non trouvée' });
+      }
+    } else if (type === 'PERSONNEL') {
+      const agent = await prisma.employe.findUnique({
+        where: { id: agentId }
+      });
+
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent non trouvé' });
+      }
+
+      sourceDepotId = agent.etablissementId;
     }
 
     // Créer le mercato
-    const mercato = await prisma.vehicleMercato.create({
+    const mercato = await prisma.mercato.create({
       data: {
-        vehicleParc,
-        depotSourceId,
+        type,
+        vehicleId: type === 'VEHICULE' ? vehicleId : null,
+        ligneId: type === 'LIGNE' ? ligneId : null,
+        agentId: type === 'PERSONNEL' ? agentId : null,
+        depotSourceId: sourceDepotId,
         depotDestinationId,
-        dateProposee: new Date(dateProposee),
-        motif: motif || null,
-        notes: notes || null,
+        dateProposee: dateProposee ? new Date(dateProposee) : new Date(),
+        description: description || null,
         statut: 'EN_ATTENTE'
       },
       include: {
         vehicle: true,
+        ligne: true,
+        agent: true,
         depotSource: true,
         depotDestination: true
       }
@@ -66,7 +107,7 @@ export async function proposeMercato(req, res) {
     res.status(201).json({
       success: true,
       data: mercato,
-      message: `Mercato proposé: ${vehicle.parc} de ${sourceDepot.nom} vers ${destDepot.nom}`
+      message: `Mercato ${type.toLowerCase()} proposé avec succès`
     });
   } catch (error) {
     console.error('[MERCATO] Error proposing mercato:', error);
@@ -80,9 +121,10 @@ export async function proposeMercato(req, res) {
  */
 export async function listMercatos(req, res) {
   try {
-    const { statut, depotSourceId, depotDestinationId, page = 1, limit = 20 } = req.query;
+    const { type, statut, depotSourceId, depotDestinationId, page = 1, limit = 50 } = req.query;
 
     const where = {};
+    if (type) where.type = type;
     if (statut) where.statut = statut;
     if (depotSourceId) where.depotSourceId = depotSourceId;
     if (depotDestinationId) where.depotDestinationId = depotDestinationId;
@@ -90,37 +132,31 @@ export async function listMercatos(req, res) {
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     const [mercatos, total] = await Promise.all([
-      prisma.vehicleMercato.findMany({
+      prisma.mercato.findMany({
         where,
         include: {
           vehicle: true,
+          ligne: true,
+          agent: true,
           depotSource: true,
           depotDestination: true
         },
         orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: parseInt(limit)
+        take: parseInt(limit),
+        skip: offset
       }),
-      prisma.vehicleMercato.count({ where })
+      prisma.mercato.count({ where })
     ]);
 
     res.json({
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      pages: Math.ceil(total / parseInt(limit)),
-      mercatos: mercatos.map(m => ({
-        id: m.id,
-        vehicule: { parc: m.vehicle.parc, type: m.vehicle.type, modele: m.vehicle.modele },
-        source: m.depotSource.nom,
-        destination: m.depotDestination.nom,
-        statut: m.statut,
-        dateProposee: m.dateProposee,
-        dateTransport: m.dateTransport,
-        motif: m.motif,
-        notes: m.notes,
-        createdAt: m.createdAt
-      }))
+      success: true,
+      data: mercatos,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
     });
   } catch (error) {
     console.error('[MERCATO] Error listing mercatos:', error);
@@ -136,10 +172,12 @@ export async function getMercato(req, res) {
   try {
     const { mercatoId } = req.params;
 
-    const mercato = await prisma.vehicleMercato.findUnique({
+    const mercato = await prisma.mercato.findUnique({
       where: { id: mercatoId },
       include: {
         vehicle: true,
+        ligne: true,
+        agent: true,
         depotSource: true,
         depotDestination: true
       }
@@ -161,14 +199,14 @@ export async function getMercato(req, res) {
 
 /**
  * PUT /api/mercatos/:mercatoId/approve
- * Approuver un mercato (directeur dépôt destination)
+ * Approuver un mercato
  */
 export async function approveMercato(req, res) {
   try {
     const { mercatoId } = req.params;
     const { approvedBy } = req.body;
 
-    const mercato = await prisma.vehicleMercato.findUnique({
+    const mercato = await prisma.mercato.findUnique({
       where: { id: mercatoId }
     });
 
@@ -180,14 +218,16 @@ export async function approveMercato(req, res) {
       return res.status(400).json({ error: 'Ce mercato ne peut pas être approuvé' });
     }
 
-    const approved = await prisma.vehicleMercato.update({
+    const approved = await prisma.mercato.update({
       where: { id: mercatoId },
       data: {
         statut: 'APPROUVÉ',
-        approveParId: approvedBy
+        dateProposeeBy: approvedBy || null
       },
       include: {
         vehicle: true,
+        ligne: true,
+        agent: true,
         depotSource: true,
         depotDestination: true
       }
@@ -211,9 +251,9 @@ export async function approveMercato(req, res) {
 export async function rejectMercato(req, res) {
   try {
     const { mercatoId } = req.params;
-    const { reason } = req.body;
+    const { raison } = req.body;
 
-    const mercato = await prisma.vehicleMercato.findUnique({
+    const mercato = await prisma.mercato.findUnique({
       where: { id: mercatoId }
     });
 
@@ -225,14 +265,16 @@ export async function rejectMercato(req, res) {
       return res.status(400).json({ error: 'Ce mercato ne peut pas être rejeté' });
     }
 
-    const rejected = await prisma.vehicleMercato.update({
+    const rejected = await prisma.mercato.update({
       where: { id: mercatoId },
       data: {
         statut: 'REJETÉ',
-        rejectionReason: reason || null
+        rejectionReason: raison || null
       },
       include: {
         vehicle: true,
+        ligne: true,
+        agent: true,
         depotSource: true,
         depotDestination: true
       }
@@ -251,14 +293,13 @@ export async function rejectMercato(req, res) {
 
 /**
  * PUT /api/mercatos/:mercatoId/complete
- * Marquer un mercato comme transporté
+ * Marquer un mercato comme complété
  */
 export async function completeMercato(req, res) {
   try {
     const { mercatoId } = req.params;
-    const { dateTransport } = req.body;
 
-    const mercato = await prisma.vehicleMercato.findUnique({
+    const mercato = await prisma.mercato.findUnique({
       where: { id: mercatoId }
     });
 
@@ -270,30 +311,38 @@ export async function completeMercato(req, res) {
       return res.status(400).json({ error: 'Seul un mercato approuvé peut être complété' });
     }
 
-    // Mettre à jour le dépôt du véhicule
-    const completed = await prisma.vehicleMercato.update({
+    // Mettre à jour le mercato
+    const completed = await prisma.mercato.update({
       where: { id: mercatoId },
       data: {
-        statut: 'TRANSPORTÉ',
-        dateTransport: dateTransport ? new Date(dateTransport) : new Date()
+        statut: 'COMPLÉTÉ'
       },
       include: {
         vehicle: true,
+        ligne: true,
+        agent: true,
         depotSource: true,
         depotDestination: true
       }
     });
 
-    // Mettre à jour l'établissement du véhicule
-    await prisma.vehicle.update({
-      where: { parc: completed.vehicleParc },
-      data: { etablissementId: completed.depotDestinationId }
-    });
+    // Mettre à jour l'établissement selon le type
+    if (mercato.type === 'VEHICULE' && mercato.vehicleId) {
+      await prisma.vehicle.update({
+        where: { parc: mercato.vehicleId },
+        data: { etablissementId: mercato.depotDestinationId }
+      });
+    } else if (mercato.type === 'PERSONNEL' && mercato.agentId) {
+      await prisma.employe.update({
+        where: { id: mercato.agentId },
+        data: { etablissementId: mercato.depotDestinationId }
+      });
+    }
 
     res.json({
       success: true,
       data: completed,
-      message: `Véhicule transféré de ${completed.depotSource.nom} à ${completed.depotDestination.nom}`
+      message: 'Mercato complété avec succès'
     });
   } catch (error) {
     console.error('[MERCATO] Error completing mercato:', error);
@@ -309,7 +358,7 @@ export async function deleteMercato(req, res) {
   try {
     const { mercatoId } = req.params;
 
-    const mercato = await prisma.vehicleMercato.findUnique({
+    const mercato = await prisma.mercato.findUnique({
       where: { id: mercatoId }
     });
 
@@ -321,7 +370,7 @@ export async function deleteMercato(req, res) {
       return res.status(400).json({ error: 'Seul un mercato en attente peut être supprimé' });
     }
 
-    await prisma.vehicleMercato.delete({
+    await prisma.mercato.delete({
       where: { id: mercatoId }
     });
 
