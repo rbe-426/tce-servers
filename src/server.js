@@ -4613,6 +4613,41 @@ async function startServer() {
     }
   });
 
+  // ===== MOUNT NEW ROUTES =====
+  console.log('[STARTUP] Mounting personnel routes...');
+  app.post('/api/depots/:depotId/personnel/assign-role', personnelRoutes.assignEmployeeRole);
+  app.get('/api/depots/:depotId/personnel/stats', personnelRoutes.getPersonnelStats);
+  app.get('/api/depots/:depotId/personnel', personnelRoutes.listDepotPersonnel);
+  app.delete('/api/personnel/roles/:roleId', personnelRoutes.deleteEmployeeRole);
+
+  console.log('[STARTUP] Mounting mercatos routes...');
+  app.post('/api/mercatos', mercatoRoutes.proposeMercato);
+  app.get('/api/mercatos', mercatoRoutes.listMercatos);
+  app.get('/api/mercatos/:mercatoId', mercatoRoutes.getMercato);
+  app.put('/api/mercatos/:mercatoId/approve', mercatoRoutes.approveMercato);
+  app.put('/api/mercatos/:mercatoId/reject', mercatoRoutes.rejectMercato);
+  app.put('/api/mercatos/:mercatoId/complete', mercatoRoutes.completeMercato);
+  app.delete('/api/mercatos/:mercatoId', mercatoRoutes.deleteMercato);
+
+  console.log('[STARTUP] Mounting vehicle needs routes...');
+  app.post('/api/depots/:depotId/vehicle-needs', vehicleNeedsRoutes.setVehicleNeed);
+  app.get('/api/depots/:depotId/vehicle-needs', vehicleNeedsRoutes.getDepotVehicleNeeds);
+  app.get('/api/vehicle-needs/critical', vehicleNeedsRoutes.getCriticalVehicleNeeds);
+  app.get('/api/vehicle-needs/mercato-suggestions', vehicleNeedsRoutes.getMercatoSuggestions);
+  app.put('/api/vehicle-needs/:needId', vehicleNeedsRoutes.updateVehicleNeedStatus);
+  app.delete('/api/vehicle-needs/:needId', vehicleNeedsRoutes.deleteVehicleNeed);
+  app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
+
+  console.log('[STARTUP] Mounting inter-depot authorization routes...');
+  app.post('/api/lignes/:ligneId/inter-depot-auth', interDepotAuthRoutes.createInterDepotAuth);
+  app.get('/api/lignes/:ligneId/inter-depot-auth', interDepotAuthRoutes.listInterDepotAuths);
+  app.get('/api/depots/:depotId/inter-depot-auth/owned', interDepotAuthRoutes.listOwnedLineAuths);
+  app.get('/api/depots/:depotId/inter-depot-auth/authorized', interDepotAuthRoutes.listAuthorizedLineAuths);
+  app.put('/api/inter-depot-auth/:authId', interDepotAuthRoutes.updateInterDepotAuth);
+  app.delete('/api/inter-depot-auth/:authId', interDepotAuthRoutes.deleteInterDepotAuth);
+  app.post('/api/inter-depot-service-transfer', interDepotAuthRoutes.transferServiceInterDepot);
+  app.get('/api/inter-depot-service-transfer', interDepotAuthRoutes.listInterDepotTransfers);
+
   // Start HTTP server
   console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
   const server = app.listen(PORT, HOST, () => {
