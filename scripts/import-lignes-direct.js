@@ -12,11 +12,10 @@
  */
 
 import { createRequire } from "node:module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+import fs from "fs";
+import path from "path";
 import { PrismaClient } from "@prisma/client";
 
-// ✅ pdf-parse est CommonJS -> on le charge ainsi en ESM (Node 22 OK)
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 
