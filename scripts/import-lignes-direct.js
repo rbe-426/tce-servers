@@ -11,9 +11,9 @@
  *   node scripts/import-lignes-from-pdfs.js --dir ./scripts/pdfs --days 60
  */
 
-import fs from "node:fs";
-import path from "node:path";
 import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 import { PrismaClient } from "@prisma/client";
 
 // ✅ pdf-parse est CommonJS -> on le charge ainsi en ESM (Node 22 OK)
