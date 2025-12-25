@@ -3,6 +3,10 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import { VEHICLE_TYPES, VEHICLE_LINES_ELIGIBILITY } from './vehicleTypes.js';
+import * as personnelRoutes from './routes/personnel.js';
+import * as mercatoRoutes from './routes/mercatos.js';
+import * as vehicleNeedsRoutes from './routes/vehicleNeeds.js';
+import * as interDepotAuthRoutes from './routes/interDepotAuth.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);

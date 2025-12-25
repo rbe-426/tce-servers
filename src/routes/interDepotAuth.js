@@ -1,52 +1,53 @@
-import express from 'express';
+/**
+ * Endpoints pour autorisations inter-dépôts
+ * POST/GET/PUT/DELETE /api/lignes/:ligneId/inter-depot-auth
+ */
+
 import { PrismaClient } from '@prisma/client';
 
-const router = express.Router();
 const prisma = new PrismaClient();
-
-// ==================== INTER-DEPOT AUTHORIZATION ====================
 
 /**
  * POST /api/lignes/:ligneId/inter-depot-auth
- * Créer une autorisation inter-dépôt
- * Body: {
- *   depotSourceId, depotExploitantId, canTakeOver?, maxCourses?,
- *   periodicite?, dateFin?, conditions?, notes?
- * }
+ * Créer une autorisation inter-dépôts
  */
-router.post('/lignes/:ligneId/inter-depot-auth', async (req, res) => {
+export async function createInterDepotAuth(req, res) {
   try {
     const { ligneId } = req.params;
-    const { depotSourceId, depotExploitantId, canTakeOver, maxCourses, periodicite, dateFin, conditions, notes, approuvePar } = req.body;
-
-    if (!depotSourceId || !depotExploitantId) {
-      return res.status(400).json({ error: 'depotSourceId et depotExploitantId sont requis' });
-    }
-
-    if (depotSourceId === depotExploitantId) {
-      return res.status(400).json({ error: 'Source et exploitant doivent être différents' });
-    }
+    const {
+      depotSourceId,
+      depotExploitantId,
+      canTakeOver = true,
+      maxCourses = null,
+      periodicite = 'PERMANENT',
+      dateFin = null,
+      conditions = null,
+      notes = null,
+      approvedBy = null
+    } = req.body;
 
     // Vérifier que la ligne existe
     const ligne = await prisma.ligne.findUnique({
       where: { id: ligneId }
     });
-
     if (!ligne) {
       return res.status(404).json({ error: 'Ligne non trouvée' });
     }
 
     // Vérifier que les dépôts existent
-    const depots = await prisma.etablissement.findMany({
-      where: { id: { in: [depotSourceId, depotExploitantId] } }
+    const sourceDepot = await prisma.etablissement.findUnique({
+      where: { id: depotSourceId }
+    });
+    const exploitantDepot = await prisma.etablissement.findUnique({
+      where: { id: depotExploitantId }
     });
 
-    if (depots.length !== 2) {
-      return res.status(404).json({ error: 'Un ou plusieurs dépôts non trouvés' });
+    if (!sourceDepot || !exploitantDepot) {
+      return res.status(404).json({ error: 'Dépôt non trouvé' });
     }
 
-    // Vérifier s'il n'existe pas déjà une autorisation
-    const existingAuth = await prisma.interDepotAuthorization.findUnique({
+    // Vérifier qu'il n'existe pas déjà une autorisation
+    const existing = await prisma.interDepotAuthorization.findUnique({
       where: {
         ligneId_depotSourceId_depotExploitantId: {
           ligneId,
@@ -56,7 +57,7 @@ router.post('/lignes/:ligneId/inter-depot-auth', async (req, res) => {
       }
     });
 
-    if (existingAuth) {
+    if (existing) {
       return res.status(400).json({ error: 'Une autorisation existe déjà pour cette combinaison' });
     }
 
@@ -66,137 +67,191 @@ router.post('/lignes/:ligneId/inter-depot-auth', async (req, res) => {
         ligneId,
         depotSourceId,
         depotExploitantId,
-        canTakeOver: canTakeOver !== false,
-        maxCourses: maxCourses || null,
-        periodicite: periodicite || 'PERMANENT',
+        canTakeOver,
+        maxCourses: maxCourses ? parseInt(maxCourses) : null,
+        periodicite,
         dateDebut: new Date(),
         dateFin: dateFin ? new Date(dateFin) : null,
         conditions: conditions ? JSON.stringify(conditions) : null,
         notes,
-        approuvePar,
+        approuvePar: approvedBy,
         statut: 'ACTIVE'
       },
       include: {
-        ligne: { select: { id: true, numero: true, nom: true } },
-        depotSource: { select: { id: true, nom: true } },
-        depotExploitant: { select: { id: true, nom: true } }
+        ligne: true,
+        depotSource: true,
+        depotExploitant: true
       }
     });
 
-    res.json({
+    res.status(201).json({
       success: true,
-      message: 'Autorisation créée avec succès',
-      data: auth
+      data: {
+        ...auth,
+        conditions: auth.conditions ? JSON.parse(auth.conditions) : null
+      },
+      message: `Autorisation créée: Dépôt ${auth.depotExploitant.nom} peut exploiter ligne ${auth.ligne.numero}`
     });
   } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] POST create ERROR:', error.message);
+    console.error('[INTER_DEPOT_AUTH] Error creating auth:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
  * GET /api/lignes/:ligneId/inter-depot-auth
  * Lister les autorisations pour une ligne
  */
-router.get('/lignes/:ligneId/inter-depot-auth', async (req, res) => {
+export async function listInterDepotAuths(req, res) {
   try {
     const { ligneId } = req.params;
-    const { status = 'ACTIVE' } = req.query;
 
-    const where = { ligneId };
+    const ligne = await prisma.ligne.findUnique({
+      where: { id: ligneId },
+      include: {
+        interDepotAuths: {
+          include: {
+            depotSource: true,
+            depotExploitant: true
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
 
-    if (status) {
-      where.statut = status;
+    if (!ligne) {
+      return res.status(404).json({ error: 'Ligne non trouvée' });
     }
 
-    const auths = await prisma.interDepotAuthorization.findMany({
-      where,
-      include: {
-        ligne: { select: { id: true, numero: true, nom: true } },
-        depotSource: { select: { id: true, nom: true } },
-        depotExploitant: { select: { id: true, nom: true } },
-        interDepotTransfers: {
-          select: { id: true, createdAt: true, statut: true },
-          orderBy: { createdAt: 'desc' },
-          take: 5
-        }
-      },
-      orderBy: { dateDebut: 'desc' }
-    });
+    const auths = ligne.interDepotAuths.map(auth => ({
+      id: auth.id,
+      ligneNumber: ligne.numero,
+      ligneName: ligne.nom,
+      depotSource: auth.depotSource.nom,
+      depotExploitant: auth.depotExploitant.nom,
+      statut: auth.statut,
+      canTakeOver: auth.canTakeOver,
+      maxCourses: auth.maxCourses,
+      periodicite: auth.periodicite,
+      dateDebut: auth.dateDebut,
+      dateFin: auth.dateFin,
+      conditions: auth.conditions ? JSON.parse(auth.conditions) : null,
+      notes: auth.notes,
+      createdAt: auth.createdAt
+    }));
 
-    res.json(auths);
+    res.json({
+      ligneId,
+      ligneNumber: ligne.numero,
+      total: auths.length,
+      authorizations: auths
+    });
   } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] GET list ERROR:', error.message);
+    console.error('[INTER_DEPOT_AUTH] Error listing auths:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
- * GET /api/depots/:depotId/inter-depot-auth/can-exploit
+ * GET /api/depots/:depotId/inter-depot-auth/owned
+ * Lister les lignes que ce dépôt exploite (propriétaire)
+ */
+export async function listOwnedLineAuths(req, res) {
+  try {
+    const { depotId } = req.params;
+
+    const auths = await prisma.interDepotAuthorization.findMany({
+      where: { depotSourceId: depotId },
+      include: {
+        ligne: true,
+        depotSource: true,
+        depotExploitant: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const formatted = auths.map(auth => ({
+      id: auth.id,
+      ligneNumber: auth.ligne.numero,
+      ligneName: auth.ligne.nom,
+      depotAuthorized: auth.depotExploitant.nom,
+      statut: auth.statut,
+      maxCourses: auth.maxCourses,
+      periodicite: auth.periodicite,
+      dateFin: auth.dateFin,
+      canTakeOver: auth.canTakeOver
+    }));
+
+    res.json({
+      depotId,
+      type: 'PROPRIÉTAIRE',
+      total: formatted.length,
+      authorizations: formatted
+    });
+  } catch (error) {
+    console.error('[INTER_DEPOT_AUTH] Error listing owned auths:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * GET /api/depots/:depotId/inter-depot-auth/authorized
  * Lister les lignes que ce dépôt peut exploiter (autorisé)
  */
-router.get('/depots/:depotId/inter-depot-auth/can-exploit', async (req, res) => {
+export async function listAuthorizedLineAuths(req, res) {
   try {
     const { depotId } = req.params;
 
     const auths = await prisma.interDepotAuthorization.findMany({
-      where: {
-        depotExploitantId: depotId,
-        statut: 'ACTIVE',
-        canTakeOver: true,
-        OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }]
-      },
+      where: { depotExploitantId: depotId },
       include: {
-        ligne: { select: { id: true, numero: true, nom: true } },
-        depotSource: { select: { id: true, nom: true } }
+        ligne: true,
+        depotSource: true,
+        depotExploitant: true
       },
-      orderBy: { dateDebut: 'desc' }
+      orderBy: { createdAt: 'desc' }
     });
 
-    res.json(auths);
-  } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] GET can-exploit ERROR:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
+    const formatted = auths.map(auth => ({
+      id: auth.id,
+      ligneNumber: auth.ligne.numero,
+      ligneName: auth.ligne.nom,
+      depotOwner: auth.depotSource.nom,
+      statut: auth.statut,
+      maxCourses: auth.maxCourses,
+      periodicite: auth.periodicite,
+      dateFin: auth.dateFin,
+      canTakeOver: auth.canTakeOver
+    }));
 
-/**
- * GET /api/depots/:depotId/inter-depot-auth/authorized-exploitants
- * Lister les dépôts autorisés à exploiter les lignes de ce dépôt
- */
-router.get('/depots/:depotId/inter-depot-auth/authorized-exploitants', async (req, res) => {
-  try {
-    const { depotId } = req.params;
-
-    const auths = await prisma.interDepotAuthorization.findMany({
-      where: {
-        depotSourceId: depotId,
-        statut: 'ACTIVE',
-        canTakeOver: true,
-        OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }]
-      },
-      include: {
-        ligne: { select: { id: true, numero: true, nom: true } },
-        depotExploitant: { select: { id: true, nom: true } }
-      },
-      orderBy: { dateDebut: 'desc' }
+    res.json({
+      depotId,
+      type: 'AUTORISÉ',
+      total: formatted.length,
+      authorizations: formatted
     });
-
-    res.json(auths);
   } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] GET authorized ERROR:', error.message);
+    console.error('[INTER_DEPOT_AUTH] Error listing authorized auths:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
- * PUT /api/lignes/:ligneId/inter-depot-auth/:authId
+ * PUT /api/inter-depot-auth/:authId
  * Modifier une autorisation
  */
-router.put('/lignes/:ligneId/inter-depot-auth/:authId', async (req, res) => {
+export async function updateInterDepotAuth(req, res) {
   try {
     const { authId } = req.params;
-    const { canTakeOver, maxCourses, statut, dateFin, notes } = req.body;
+    const {
+      statut,
+      canTakeOver,
+      maxCourses,
+      periodicite,
+      dateFin,
+      conditions,
+      notes
+    } = req.body;
 
     const auth = await prisma.interDepotAuthorization.findUnique({
       where: { id: authId }
@@ -206,60 +261,43 @@ router.put('/lignes/:ligneId/inter-depot-auth/:authId', async (req, res) => {
       return res.status(404).json({ error: 'Autorisation non trouvée' });
     }
 
-    const updateData = {};
-
-    if (canTakeOver !== undefined) {
-      updateData.canTakeOver = canTakeOver;
-    }
-
-    if (maxCourses !== undefined) {
-      updateData.maxCourses = maxCourses;
-    }
-
-    if (statut) {
-      const validStatuts = ['ACTIVE', 'SUSPENDUE', 'REFUSÉE', 'EN_ATTENTE'];
-      if (!validStatuts.includes(statut)) {
-        return res.status(400).json({
-          error: `Statut invalide. Statuts valides: ${validStatuts.join(', ')}`
-        });
-      }
-      updateData.statut = statut;
-    }
-
-    if (dateFin !== undefined) {
-      updateData.dateFin = dateFin ? new Date(dateFin) : null;
-    }
-
-    if (notes !== undefined) {
-      updateData.notes = notes;
-    }
-
     const updated = await prisma.interDepotAuthorization.update({
       where: { id: authId },
-      data: updateData,
+      data: {
+        ...(statut && { statut }),
+        ...(canTakeOver !== undefined && { canTakeOver }),
+        ...(maxCourses !== undefined && { maxCourses: maxCourses ? parseInt(maxCourses) : null }),
+        ...(periodicite && { periodicite }),
+        ...(dateFin && { dateFin: new Date(dateFin) }),
+        ...(conditions && { conditions: JSON.stringify(conditions) }),
+        ...(notes && { notes })
+      },
       include: {
-        ligne: { select: { id: true, numero: true, nom: true } },
-        depotSource: { select: { id: true, nom: true } },
-        depotExploitant: { select: { id: true, nom: true } }
+        ligne: true,
+        depotSource: true,
+        depotExploitant: true
       }
     });
 
     res.json({
       success: true,
-      message: 'Autorisation mise à jour avec succès',
-      data: updated
+      data: {
+        ...updated,
+        conditions: updated.conditions ? JSON.parse(updated.conditions) : null
+      },
+      message: 'Autorisation mise à jour'
     });
   } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] PUT update ERROR:', error.message);
+    console.error('[INTER_DEPOT_AUTH] Error updating auth:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
- * DELETE /api/lignes/:ligneId/inter-depot-auth/:authId
+ * DELETE /api/inter-depot-auth/:authId
  * Révoquer une autorisation
  */
-router.delete('/lignes/:ligneId/inter-depot-auth/:authId', async (req, res) => {
+export async function deleteInterDepotAuth(req, res) {
   try {
     const { authId } = req.params;
 
@@ -271,40 +309,35 @@ router.delete('/lignes/:ligneId/inter-depot-auth/:authId', async (req, res) => {
       return res.status(404).json({ error: 'Autorisation non trouvée' });
     }
 
-    await prisma.interDepotAuthorization.delete({
-      where: { id: authId }
+    // Soft delete: marquer comme REFUSÉE
+    const deleted = await prisma.interDepotAuthorization.update({
+      where: { id: authId },
+      data: { statut: 'REFUSÉE' }
     });
 
-    res.json({ success: true, message: 'Autorisation révoquée avec succès' });
+    res.json({
+      success: true,
+      message: 'Autorisation révoquée'
+    });
   } catch (error) {
-    console.error('[INTER-DEPOT-AUTH] DELETE error ERROR:', error.message);
+    console.error('[INTER_DEPOT_AUTH] Error deleting auth:', error);
     res.status(500).json({ error: error.message });
   }
-});
-
-// ==================== INTER-DEPOT SERVICE TRANSFER ====================
+}
 
 /**
  * POST /api/inter-depot-service-transfer
  * Transférer un service inter-dépôt
- * Body: { serviceId, authorizationId, depotExecutionId, raison? }
  */
-router.post('/inter-depot-service-transfer', async (req, res) => {
+export async function transferServiceInterDepot(req, res) {
   try {
     const { serviceId, authorizationId, depotExecutionId, raison } = req.body;
 
-    if (!serviceId || !authorizationId || !depotExecutionId) {
-      return res.status(400).json({
-        error: 'serviceId, authorizationId et depotExecutionId sont requis'
-      });
-    }
-
-    // Vérifier le service
+    // Vérifier que le service existe
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
       include: { ligne: true }
     });
-
     if (!service) {
       return res.status(404).json({ error: 'Service non trouvé' });
     }
@@ -313,7 +346,6 @@ router.post('/inter-depot-service-transfer', async (req, res) => {
     const auth = await prisma.interDepotAuthorization.findUnique({
       where: { id: authorizationId }
     });
-
     if (!auth) {
       return res.status(404).json({ error: 'Autorisation non trouvée' });
     }
@@ -323,38 +355,34 @@ router.post('/inter-depot-service-transfer', async (req, res) => {
       return res.status(400).json({ error: 'Autorisation inactive' });
     }
 
-    if (auth.ligneId !== service.ligneId) {
-      return res.status(400).json({ error: 'Autorisation ne correspond pas à cette ligne' });
-    }
-
-    if (!auth.canTakeOver) {
-      return res.status(400).json({ error: 'Dépôt non autorisé à reprendre des courses' });
-    }
-
     if (auth.dateFin && new Date() > new Date(auth.dateFin)) {
       return res.status(400).json({ error: 'Autorisation expirée' });
     }
 
-    if (auth.depotExploitantId !== depotExecutionId) {
-      return res.status(400).json({ error: 'Dépôt exécutant ne correspond pas' });
+    if (!auth.canTakeOver) {
+      return res.status(400).json({ error: 'Ce dépôt n\'est pas autorisé à reprendre des courses' });
     }
 
-    // Vérifier le nombre de transferts du jour
+    if (auth.depotExploitantId !== depotExecutionId) {
+      return res.status(400).json({ error: 'Dépôt non autorisé' });
+    }
+
+    // Vérifier les limites quotidiennes
     if (auth.maxCourses) {
       const today = new Date();
-      const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const dayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-
       const transfersToday = await prisma.interDepotServiceTransfer.count({
         where: {
           authorizationId,
-          createdAt: { gte: dayStart, lt: dayEnd }
+          createdAt: {
+            gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+            lt: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+          }
         }
       });
 
       if (transfersToday >= auth.maxCourses) {
         return res.status(400).json({
-          error: `Limite quotidienne atteinte (${auth.maxCourses})`
+          error: `Limite quotidienne atteinte (${auth.maxCourses} courses/jour)`
         });
       }
     }
@@ -366,39 +394,38 @@ router.post('/inter-depot-service-transfer', async (req, res) => {
         authorizationId,
         depotOrigineId: auth.depotSourceId,
         depotExecutionId,
-        raison: raison || 'Transfert inter-dépôt',
+        raison: raison || null,
         statut: 'TRANSFERÉ'
       },
       include: {
-        service: {
-          include: { ligne: { select: { numero: true, nom: true } } }
-        },
-        depotOrigine: { select: { id: true, nom: true } },
-        depotExecution: { select: { id: true, nom: true } }
+        service: { include: { ligne: true } },
+        authorization: true,
+        depotOrigine: true,
+        depotExecution: true
       }
     });
 
-    res.json({
+    res.status(201).json({
       success: true,
-      message: 'Service transféré avec succès',
-      data: transfer
+      data: transfer,
+      message: `Service transféré de ${transfer.depotOrigine.nom} vers ${transfer.depotExecution.nom}`
     });
   } catch (error) {
-    console.error('[INTER-DEPOT-TRANSFER] POST error ERROR:', error.message);
+    console.error('[INTER_DEPOT_TRANSFER] Error transferring service:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
  * GET /api/inter-depot-service-transfer
- * Lister les transferts de services
+ * Lister les transferts inter-dépôts
  */
-router.get('/inter-depot-service-transfer', async (req, res) => {
+export async function listInterDepotTransfers(req, res) {
   try {
-    const { depotId, status, limit = 50, offset = 0 } = req.query;
+    const { authorizationId, depotId, page = 1, limit = 20 } = req.query;
 
     const where = {};
-
+    if (authorizationId) where.authorizationId = authorizationId;
     if (depotId) {
       where.OR = [
         { depotOrigineId: depotId },
@@ -406,34 +433,45 @@ router.get('/inter-depot-service-transfer', async (req, res) => {
       ];
     }
 
-    if (status) {
-      where.statut = status;
-    }
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const transfers = await prisma.interDepotServiceTransfer.findMany({
-      where,
-      include: {
-        service: {
-          include: { ligne: { select: { numero: true, nom: true } } }
+    const [transfers, total] = await Promise.all([
+      prisma.interDepotServiceTransfer.findMany({
+        where,
+        include: {
+          service: { include: { ligne: true, conducteur: true } },
+          authorization: true,
+          depotOrigine: true,
+          depotExecution: true
         },
-        depotOrigine: { select: { id: true, nom: true } },
-        depotExecution: { select: { id: true, nom: true } }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: parseInt(limit),
-      skip: parseInt(offset)
-    });
-
-    const total = await prisma.interDepotServiceTransfer.count({ where });
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: parseInt(limit)
+      }),
+      prisma.interDepotServiceTransfer.count({ where })
+    ]);
 
     res.json({
-      data: transfers,
-      pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      pages: Math.ceil(total / parseInt(limit)),
+      transfers: transfers.map(t => ({
+        id: t.id,
+        ligneNumber: t.service.ligne.numero,
+        date: t.service.date,
+        heureDebut: t.service.heureDebut,
+        heureFin: t.service.heureFin,
+        depotOrigine: t.depotOrigine.nom,
+        depotExecution: t.depotExecution.nom,
+        conducteur: t.service.conducteur ? `${t.service.conducteur.prenom} ${t.service.conducteur.nom}` : 'N/A',
+        raison: t.raison,
+        statut: t.statut,
+        createdAt: t.createdAt
+      }))
     });
   } catch (error) {
-    console.error('[INTER-DEPOT-TRANSFER] GET list ERROR:', error.message);
+    console.error('[INTER_DEPOT_TRANSFER] Error listing transfers:', error);
     res.status(500).json({ error: error.message });
   }
-});
-
-export default router;
+}

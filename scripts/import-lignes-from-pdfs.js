@@ -18,8 +18,12 @@
 
 import fs from "fs";
 import path from "path";
-import pdf from "pdf-parse";
 import { PrismaClient } from "@prisma/client";
+
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
+
 
 const prisma = new PrismaClient();
 

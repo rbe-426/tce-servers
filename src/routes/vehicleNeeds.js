@@ -1,242 +1,357 @@
-import express from 'express';
+/**
+ * Endpoints pour besoins en véhicules par type
+ * POST/GET/PUT/DELETE /api/depots/:depotId/vehicle-needs
+ */
+
 import { PrismaClient } from '@prisma/client';
 
-const router = express.Router();
 const prisma = new PrismaClient();
-
-// ==================== VEHICLE NEEDS ====================
 
 /**
  * POST /api/depots/:depotId/vehicle-needs
- * Créer un besoin en véhicule
- * Body: { type, dateDebut, dateFin?, nombreNeeded, raison?, isCritical? }
+ * Créer ou mettre à jour un besoin en véhicules
  */
-router.post('/depots/:depotId/vehicle-needs', async (req, res) => {
+export async function setVehicleNeed(req, res) {
   try {
     const { depotId } = req.params;
-    const { type, dateDebut, dateFin, nombreNeeded, raison, isCritical } = req.body;
+    const { vehicleTypeId, quantityNeeded, isUrgent = false, reason = null } = req.body;
 
-    if (!type || !dateDebut || !nombreNeeded) {
-      return res.status(400).json({ error: 'type, dateDebut et nombreNeeded sont requis' });
-    }
-
-    if (nombreNeeded <= 0) {
-      return res.status(400).json({ error: 'nombreNeeded doit être supérieur à 0' });
-    }
-
-    // Vérifier que le dépôt existe
+    // Vérifier le dépôt
     const depot = await prisma.etablissement.findUnique({
       where: { id: depotId }
     });
-
     if (!depot) {
       return res.status(404).json({ error: 'Dépôt non trouvé' });
     }
 
-    // Créer le besoin
-    const need = await prisma.vehicleNeed.create({
-      data: {
-        depotId,
-        type,
-        dateDebut: new Date(dateDebut),
-        dateFin: dateFin ? new Date(dateFin) : null,
-        nombreNeeded,
-        raison: raison || 'Besoin général',
-        isCritical: isCritical || false,
-        nombreActuel: 0
+    // Vérifier le type de véhicule
+    const vehicleType = await prisma.vehicleType.findUnique({
+      where: { id: vehicleTypeId }
+    });
+    if (!vehicleType) {
+      return res.status(404).json({ error: 'Type de véhicule non trouvé' });
+    }
+
+    // Chercher un besoin existant
+    const existing = await prisma.vehicleNeed.findUnique({
+      where: {
+        depotId_vehicleTypeId: {
+          depotId,
+          vehicleTypeId
+        }
       }
     });
 
-    res.json({
+    let need;
+    if (existing) {
+      // Mettre à jour
+      need = await prisma.vehicleNeed.update({
+        where: {
+          depotId_vehicleTypeId: {
+            depotId,
+            vehicleTypeId
+          }
+        },
+        data: {
+          quantityNeeded: parseInt(quantityNeeded),
+          isUrgent,
+          reason,
+          updatedAt: new Date()
+        },
+        include: { depot: true, vehicleType: true }
+      });
+    } else {
+      // Créer
+      need = await prisma.vehicleNeed.create({
+        data: {
+          depotId,
+          vehicleTypeId,
+          quantityNeeded: parseInt(quantityNeeded),
+          isUrgent,
+          reason,
+          statut: 'OUVERT'
+        },
+        include: { depot: true, vehicleType: true }
+      });
+    }
+
+    res.status(existing ? 200 : 201).json({
       success: true,
-      message: 'Besoin créé avec succès',
-      data: need
+      data: {
+        id: need.id,
+        depot: need.depot.nom,
+        vehicleType: need.vehicleType.nom,
+        quantityNeeded: need.quantityNeeded,
+        isUrgent: need.isUrgent,
+        statut: need.statut,
+        reason: need.reason,
+        createdAt: need.createdAt,
+        updatedAt: need.updatedAt
+      },
+      message: `Besoin ${existing ? 'mis à jour' : 'créé'} pour ${need.depot.nom}`
     });
   } catch (error) {
-    console.error('[VEHICLE-NEEDS] POST create ERROR:', error.message);
+    console.error('[VEHICLE_NEEDS] Error setting need:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
  * GET /api/depots/:depotId/vehicle-needs
  * Lister les besoins en véhicules d'un dépôt
- * Query: ?active=true&type=Autobus&limit=50
  */
-router.get('/depots/:depotId/vehicle-needs', async (req, res) => {
+export async function getDepotVehicleNeeds(req, res) {
   try {
     const { depotId } = req.params;
-    const { active, type, limit = 50, offset = 0 } = req.query;
+    const { statut } = req.query;
 
-    const where = { depotId };
-
-    if (active === 'true') {
-      const today = new Date();
-      where.AND = [
-        { dateDebut: { lte: today } },
-        { OR: [{ dateFin: null }, { dateFin: { gte: today } }] }
-      ];
+    const depot = await prisma.etablissement.findUnique({
+      where: { id: depotId }
+    });
+    if (!depot) {
+      return res.status(404).json({ error: 'Dépôt non trouvé' });
     }
 
-    if (type) {
-      where.type = type;
-    }
-
-    const needs = await prisma.vehicleNeed.findMany({
-      where,
-      orderBy: { dateDebut: 'desc' },
-      take: parseInt(limit),
-      skip: parseInt(offset)
-    });
-
-    const total = await prisma.vehicleNeed.count({ where });
-
-    res.json({
-      data: needs,
-      pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
-    });
-  } catch (error) {
-    console.error('[VEHICLE-NEEDS] GET list ERROR:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/depots/:depotId/vehicle-availability
- * Voir la disponibilité en véhicules par type (besoin vs stock)
- */
-router.get('/depots/:depotId/vehicle-availability', async (req, res) => {
-  try {
-    const { depotId } = req.params;
-
-    // Récupérer les besoins actuels (actifs)
-    const today = new Date();
     const needs = await prisma.vehicleNeed.findMany({
       where: {
         depotId,
-        dateDebut: { lte: today },
-        OR: [{ dateFin: null }, { dateFin: { gte: today } }]
+        ...(statut && { statut })
       },
-      distinct: ['type']
+      include: { vehicleType: true },
+      orderBy: [{ isUrgent: 'desc' }, { createdAt: 'desc' }]
     });
 
-    // Récupérer les véhicules disponibles par type
-    const vehicles = await prisma.vehicle.groupBy({
-      by: ['type'],
-      where: { etablissementId: depotId },
-      _count: { parc: true }
-    });
-
-    // Combiner les infos
-    const availability = [];
-
-    // Pour chaque type avec besoin
-    for (const need of needs) {
-      const vehicleCount = vehicles.find(v => v.type === need.type)?._count.parc || 0;
-      const totalNeeded = need.nombreNeeded;
-      const deficit = totalNeeded - vehicleCount;
-
-      availability.push({
-        type: need.type,
-        needed: totalNeeded,
-        available: vehicleCount,
-        deficit: deficit > 0 ? deficit : 0,
-        surplus: deficit < 0 ? Math.abs(deficit) : 0,
-        isCritical: need.isCritical,
-        raison: need.raison
-      });
-    }
-
-    // Ajouter les types avec surplus (pas de besoin déclaré)
-    for (const vehicle of vehicles) {
-      const hasNeed = needs.some(n => n.type === vehicle.type);
-      if (!hasNeed) {
-        availability.push({
-          type: vehicle.type,
-          needed: 0,
-          available: vehicle._count.parc,
-          deficit: 0,
-          surplus: vehicle._count.parc,
-          isCritical: false,
-          raison: null
+    // Calculer la disponibilité pour chaque type
+    const needsWithAvailability = await Promise.all(
+      needs.map(async (need) => {
+        const available = await prisma.vehicle.count({
+          where: {
+            vehicleTypeId: need.vehicleTypeId,
+            etablissementId: depotId,
+            vehicleState: { NOT: 'INDISPONIBLE' }
+          }
         });
+
+        const totalInDepot = await prisma.vehicle.count({
+          where: {
+            vehicleTypeId: need.vehicleTypeId,
+            etablissementId: depotId
+          }
+        });
+
+        return {
+          id: need.id,
+          vehicleType: need.vehicleType.nom,
+          quantityNeeded: need.quantityNeeded,
+          quantityAvailable: available,
+          quantityTotal: totalInDepot,
+          shortfall: Math.max(0, need.quantityNeeded - available),
+          isUrgent: need.isUrgent,
+          statut: need.statut,
+          reason: need.reason,
+          createdAt: need.createdAt
+        };
+      })
+    );
+
+    res.json({
+      depotId,
+      depotName: depot.nom,
+      total: needsWithAvailability.length,
+      urgent: needsWithAvailability.filter((n) => n.isUrgent).length,
+      needs: needsWithAvailability
+    });
+  } catch (error) {
+    console.error('[VEHICLE_NEEDS] Error getting depot needs:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * GET /api/vehicle-needs/critical
+ * Lister tous les besoins critiques (urgent ou avec manque)
+ */
+export async function getCriticalVehicleNeeds(req, res) {
+  try {
+    const needs = await prisma.vehicleNeed.findMany({
+      where: {
+        statut: 'OUVERT'
+      },
+      include: { depot: true, vehicleType: true },
+      orderBy: [{ isUrgent: 'desc' }, { createdAt: 'desc' }]
+    });
+
+    // Filtrer et calculer les manques
+    const criticalNeeds = await Promise.all(
+      needs.map(async (need) => {
+        const available = await prisma.vehicle.count({
+          where: {
+            vehicleTypeId: need.vehicleTypeId,
+            etablissementId: need.depotId,
+            vehicleState: { NOT: 'INDISPONIBLE' }
+          }
+        });
+
+        const shortfall = Math.max(0, need.quantityNeeded - available);
+
+        if (need.isUrgent || shortfall > 0) {
+          return {
+            id: need.id,
+            depot: need.depot.nom,
+            vehicleType: need.vehicleType.nom,
+            quantityNeeded: need.quantityNeeded,
+            quantityAvailable: available,
+            shortfall,
+            isUrgent: need.isUrgent,
+            reason: need.reason
+          };
+        }
+        return null;
+      })
+    );
+
+    const filtered = criticalNeeds.filter((n) => n !== null);
+
+    res.json({
+      total: filtered.length,
+      criticalNeeds: filtered,
+      summary: {
+        urgentNeeds: filtered.filter((n) => n.isUrgent).length,
+        needsWithShortfall: filtered.filter((n) => n.shortfall > 0).length,
+        totalVehiclesNeeded: filtered.reduce((sum, n) => sum + n.shortfall, 0)
+      }
+    });
+  } catch (error) {
+    console.error('[VEHICLE_NEEDS] Error getting critical needs:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * GET /api/vehicle-needs/mercato-suggestions
+ * Suggérer des mercatos pour combler les besoins
+ */
+export async function getMercatoSuggestions(req, res) {
+  try {
+    const { depotId } = req.query;
+
+    // Récupérer les besoins critiques du dépôt
+    const needs = await prisma.vehicleNeed.findMany({
+      where: {
+        depotId,
+        statut: 'OUVERT'
+      },
+      include: { vehicleType: true }
+    });
+
+    const suggestions = [];
+
+    for (const need of needs) {
+      const available = await prisma.vehicle.count({
+        where: {
+          vehicleTypeId: need.vehicleTypeId,
+          etablissementId: depotId,
+          vehicleState: { NOT: 'INDISPONIBLE' }
+        }
+      });
+
+      const shortfall = Math.max(0, need.quantityNeeded - available);
+
+      if (shortfall > 0) {
+        // Chercher des dépôts avec des véhicules disponibles
+        const availableInOtherDepots = await prisma.vehicle.findMany({
+          where: {
+            vehicleTypeId: need.vehicleTypeId,
+            etablissementId: { not: depotId },
+            vehicleState: { NOT: 'INDISPONIBLE' }
+          },
+          include: { etablissement: true },
+          take: shortfall
+        });
+
+        if (availableInOtherDepots.length > 0) {
+          suggestions.push({
+            need: {
+              vehicleType: need.vehicleType.nom,
+              quantityNeeded: need.quantityNeeded,
+              quantityAvailable: available,
+              shortfall
+            },
+            potentialMercatos: availableInOtherDepots.map((vehicle) => ({
+              vehicleId: vehicle.id,
+              vehicleNumber: vehicle.numero,
+              sourceDepot: vehicle.etablissement.nom,
+              sourceDepotId: vehicle.etablissementId,
+              targetDepot: depotId
+            }))
+          });
+        }
       }
     }
 
-    res.json(availability);
+    res.json({
+      depotId,
+      totalSuggestions: suggestions.length,
+      suggestions,
+      message:
+        suggestions.length > 0
+          ? `${suggestions.length} besoin(s) peut(vent) être comblé(s) par mercatos`
+          : 'Aucun besoin critique non comblable'
+    });
   } catch (error) {
-    console.error('[VEHICLE-NEEDS] GET availability ERROR:', error.message);
+    console.error('[VEHICLE_NEEDS] Error getting mercato suggestions:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
- * PUT /api/depots/:depotId/vehicle-needs/:needId
- * Mettre à jour un besoin
- * Body: { nombreNeeded?, dateFin?, raison?, isCritical? }
+ * PUT /api/vehicle-needs/:needId
+ * Mettre à jour le statut d'un besoin
  */
-router.put('/depots/:depotId/vehicle-needs/:needId', async (req, res) => {
+export async function updateVehicleNeedStatus(req, res) {
   try {
     const { needId } = req.params;
-    const { nombreNeeded, dateFin, raison, isCritical } = req.body;
+    const { statut, isUrgent, reason } = req.body;
 
     const need = await prisma.vehicleNeed.findUnique({
       where: { id: needId }
     });
-
     if (!need) {
       return res.status(404).json({ error: 'Besoin non trouvé' });
     }
 
-    const updateData = {};
-
-    if (nombreNeeded !== undefined) {
-      if (nombreNeeded <= 0) {
-        return res.status(400).json({ error: 'nombreNeeded doit être supérieur à 0' });
-      }
-      updateData.nombreNeeded = nombreNeeded;
-    }
-
-    if (dateFin !== undefined) {
-      updateData.dateFin = dateFin ? new Date(dateFin) : null;
-    }
-
-    if (raison !== undefined) {
-      updateData.raison = raison;
-    }
-
-    if (isCritical !== undefined) {
-      updateData.isCritical = isCritical;
-    }
-
     const updated = await prisma.vehicleNeed.update({
       where: { id: needId },
-      data: updateData
+      data: {
+        ...(statut && { statut }),
+        ...(isUrgent !== undefined && { isUrgent }),
+        ...(reason && { reason })
+      },
+      include: { depot: true, vehicleType: true }
     });
 
     res.json({
       success: true,
-      message: 'Besoin mis à jour avec succès',
-      data: updated
+      data: updated,
+      message: 'Besoin mis à jour'
     });
   } catch (error) {
-    console.error('[VEHICLE-NEEDS] PUT update ERROR:', error.message);
+    console.error('[VEHICLE_NEEDS] Error updating need status:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
 /**
- * DELETE /api/depots/:depotId/vehicle-needs/:needId
+ * DELETE /api/vehicle-needs/:needId
  * Supprimer un besoin
  */
-router.delete('/depots/:depotId/vehicle-needs/:needId', async (req, res) => {
+export async function deleteVehicleNeed(req, res) {
   try {
     const { needId } = req.params;
 
     const need = await prisma.vehicleNeed.findUnique({
       where: { id: needId }
     });
-
     if (!need) {
       return res.status(404).json({ error: 'Besoin non trouvé' });
     }
@@ -245,11 +360,32 @@ router.delete('/depots/:depotId/vehicle-needs/:needId', async (req, res) => {
       where: { id: needId }
     });
 
-    res.json({ success: true, message: 'Besoin supprimé avec succès' });
+    res.json({
+      success: true,
+      message: 'Besoin supprimé'
+    });
   } catch (error) {
-    console.error('[VEHICLE-NEEDS] DELETE error ERROR:', error.message);
+    console.error('[VEHICLE_NEEDS] Error deleting need:', error);
     res.status(500).json({ error: error.message });
   }
-});
+}
 
-export default router;
+/**
+ * GET /api/vehicle-types
+ * Lister les types de véhicules disponibles
+ */
+export async function listVehicleTypes(req, res) {
+  try {
+    const types = await prisma.vehicleType.findMany({
+      orderBy: { nom: 'asc' }
+    });
+
+    res.json({
+      total: types.length,
+      vehicleTypes: types
+    });
+  } catch (error) {
+    console.error('[VEHICLE_NEEDS] Error listing vehicle types:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
