@@ -1545,7 +1545,18 @@ app.post('/api/lignes', async (req, res) => {
   }
 });
 
-// UPDATE
+// ========== ROUTES LIGNES SPÉCIFIQUES (avant la route générique :id) ==========
+
+// PUT /api/lignes/:ligneId/assign-depot
+app.put('/api/lignes/:ligneId/assign-depot', lignesRoutes.assignLineToDepot);
+
+// GET /api/lignes/:ligneId/available-vehicles
+app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
+
+// GET /api/lignes/:ligneId/available-conducteurs
+app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
+
+// UPDATE (route générique)
 app.put('/api/lignes/:id', async (req, res) => {
   try {
     const b = req.body;
@@ -4870,7 +4881,6 @@ async function startServer() {
     };
   }
   
-  app.put('/api/lignes/:ligneId/assign-depot', lignesRoutes.assignLineToDepot);
   app.get('/api/lignes', lignesRoutes.getLines || (async (req, res) => {
     try {
       const lignes = await prisma.ligne.findMany({
@@ -4881,9 +4891,7 @@ async function startServer() {
       res.status(500).json({ error: e.message });
     }
   }));
-  app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
-  app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
-
+  
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({
