@@ -541,6 +541,120 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
   }
 });
 
+// GET /api/services/:serviceId/assignable-conductors - Conducteurs assignables respectant règles d'amplitude
+app.get('/api/services/:serviceId/assignable-conductors', async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    
+    // Récupérer le service
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: { ligne: true }
+    });
+
+    if (!service) {
+      return res.status(404).json({ error: 'Service non trouvé' });
+    }
+
+    // Récupérer tous les conducteurs disponibles
+    const allConductors = await prisma.conducteur.findMany({
+      where: {
+        statut: 'Actif'
+      },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        permis: true,
+        statut: true
+      },
+      orderBy: { nom: 'asc' },
+      take: 500
+    });
+
+    // === RÈGLES D'AMPLITUDE ===
+    // Vérifier l'amplitude de travail (max 10h/jour généralement)
+    const serviceDate = new Date(service.dateService);
+    const [serviceHourStart, serviceMinStart] = service.heureDebut.split(':').map(Number);
+    const [serviceHourEnd, serviceMinEnd] = service.heureFin.split(':').map(Number);
+    const serviceDuration = (serviceHourEnd - serviceHourStart) + (serviceMinEnd - serviceMinStart) / 60;
+    
+    // Services du jour pour le check d'amplitude
+    const servicesOfDay = await prisma.service.findMany({
+      where: {
+        dateService: {
+          gte: new Date(serviceDate.setHours(0, 0, 0, 0)),
+          lt: new Date(new Date(serviceDate).setHours(24, 0, 0, 0))
+        }
+      },
+      select: {
+        id: true,
+        conducteurAssigne: true,
+        heureDebut: true,
+        heureFin: true
+      }
+    });
+
+    // Créer une map: conducteur -> durée totale du jour
+    const conductorWorkMap = new Map();
+    servicesOfDay.forEach(svc => {
+      if (svc.conducteurAssigne && svc.id !== serviceId) {
+        const [h1, m1] = svc.heureDebut.split(':').map(Number);
+        const [h2, m2] = svc.heureFin.split(':').map(Number);
+        const duration = (h2 - h1) + (m2 - m1) / 60;
+        
+        const currentTotal = conductorWorkMap.get(svc.conducteurAssigne) || 0;
+        conductorWorkMap.set(svc.conducteurAssigne, currentTotal + duration);
+      }
+    });
+
+    // Filtrer les conducteurs disponibles
+    const conductors = allConductors.filter(c => {
+      // 1. Vérifier que le conducteur n'a pas déjà ce service
+      const hasService = servicesOfDay.some(s => s.id === serviceId && s.conducteurAssigne === c.id);
+      if (hasService) return false;
+      
+      // 2. Vérifier l'amplitude max (10h par jour)
+      const currentWorkTime = conductorWorkMap.get(c.id) || 0;
+      if (currentWorkTime + serviceDuration > 10) {
+        return false; // Dépasserait l'amplitude
+      }
+      
+      // 3. Vérifier qu'il n'est pas en conflit horaire
+      const hasConflict = servicesOfDay.some(svc => {
+        if (svc.conducteurAssigne !== c.id || svc.id === serviceId) return false;
+        
+        const [svcH1, svcM1] = svc.heureDebut.split(':').map(Number);
+        const [svcH2, svcM2] = svc.heureFin.split(':').map(Number);
+        const svcStart = svcH1 + svcM1 / 60;
+        const svcEnd = svcH2 + svcM2 / 60;
+        const thisStart = serviceHourStart + serviceMinStart / 60;
+        const thisEnd = serviceHourEnd + serviceMinEnd / 60;
+        
+        // Vérifier chevauchement (avec buffer de 30min)
+        return !(thisEnd + 0.5 < svcStart || thisStart > svcEnd + 0.5);
+      });
+      
+      return !hasConflict;
+    }).slice(0, 50);
+
+    res.json({
+      serviceId,
+      ligneNumero: service.ligne.numero,
+      conductors,
+      total: conductors.length,
+      rules: {
+        maxAmplitude: 10, // heures par jour
+        checkConflicts: true,
+        minRest: 0.5 // 30 minutes minimum entre deux services
+      }
+    });
+  } catch (e) {
+    console.error('GET /api/services/:serviceId/assignable-conductors ERROR ->', e.message);
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 // LIST
 app.get('/api/vehicles', async (_req, res) => {
   try {
