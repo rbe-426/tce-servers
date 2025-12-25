@@ -304,8 +304,8 @@ async function parseAllPdfsIntoLignesData(pdfDir) {
   for (const f of files) {
     const full = path.join(pdfDir, f);
     const buf = fs.readFileSync(full);
-    const parsed = await PDFParse(buf);
-    const rawText = parsed.text || "";
+    const pdfParser = new PDFParse(buf);
+    const rawText = pdfParser.text || "";
 
     const numero = detectLineNumber(f, rawText);
     if (!numero) {
