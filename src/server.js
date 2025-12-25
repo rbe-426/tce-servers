@@ -7,6 +7,7 @@ import * as personnelRoutes from './routes/personnel.js';
 import * as mercatoRoutes from './routes/mercatos.js';
 import * as vehicleNeedsRoutes from './routes/vehicleNeeds.js';
 import * as interDepotAuthRoutes from './routes/interDepotAuth.js';
+import * as lignesRoutes from './routes/lignes.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);
@@ -4647,6 +4648,12 @@ async function startServer() {
   app.delete('/api/inter-depot-auth/:authId', interDepotAuthRoutes.deleteInterDepotAuth);
   app.post('/api/inter-depot-service-transfer', interDepotAuthRoutes.transferServiceInterDepot);
   app.get('/api/inter-depot-service-transfer', interDepotAuthRoutes.listInterDepotTransfers);
+
+  console.log('[STARTUP] Mounting lignes routes...');
+  app.put('/api/lignes/:ligneId/assign-depot', lignesRoutes.assignLineToDepot);
+  app.get('/api/lignes', lignesRoutes.getLines);
+  app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
+  app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
 
   // Start HTTP server
   console.log('[STARTUP] About to create HTTP server on', HOST + ':' + PORT);
