@@ -4871,7 +4871,7 @@ async function startServer() {
   }
   
   app.put('/api/lignes/:ligneId/assign-depot', lignesRoutes.assignLineToDepot);
-  app.get('/api/lignes', lignesRoutes.getLines || async (req, res) => {
+  app.get('/api/lignes', lignesRoutes.getLines || (async (req, res) => {
     try {
       const lignes = await prisma.ligne.findMany({
         include: { etablissement: true }
@@ -4880,7 +4880,7 @@ async function startServer() {
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
-  });
+  }));
   app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
   app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
 
