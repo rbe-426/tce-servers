@@ -17,7 +17,8 @@ import path from "path";
 import { PrismaClient } from "@prisma/client";
 
 const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+// pdf-parse v2.4.5 exporte PDFParse (class), pas pdfParse (function)
+const { PDFParse } = require("pdf-parse");
 
 const prisma = new PrismaClient();
 
@@ -303,7 +304,7 @@ async function parseAllPdfsIntoLignesData(pdfDir) {
   for (const f of files) {
     const full = path.join(pdfDir, f);
     const buf = fs.readFileSync(full);
-    const parsed = await pdfParse(buf);
+    const parsed = await PDFParse(buf);
     const rawText = parsed.text || "";
 
     const numero = detectLineNumber(f, rawText);
