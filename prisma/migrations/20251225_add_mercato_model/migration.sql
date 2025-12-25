@@ -13,13 +13,13 @@ CREATE TABLE "Mercato" (
     -- Données communes
     "statut" TEXT NOT NULL DEFAULT 'EN_ATTENTE', -- EN_ATTENTE, APPROUVÉ, REJETÉ
     "description" TEXT,
-    "dateProposee" DATETIME NOT NULL,
+    "dateProposee" TIMESTAMP NOT NULL,
     "dateProposeeBy" TEXT,
     "rejectionReason" TEXT,
     
     -- Timestamps
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     
     CONSTRAINT "Mercato_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "Vehicle" ("parc") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Mercato_ligneId_fkey" FOREIGN KEY ("ligneId") REFERENCES "Ligne" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
