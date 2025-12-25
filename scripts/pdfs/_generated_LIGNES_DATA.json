@@ -232,5 +232,122 @@
     "heureDebut": "06h00",
     "heureFin": "20h00",
     "sens": []
+  },
+  {
+    "numero": "4250",
+    "nom": "LIGNE_4250",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4251",
+    "nom": "LIGNE_4251",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4270",
+    "nom": "LIGNE_4270",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4271",
+    "nom": "LIGNE_4271",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4272",
+    "nom": "LIGNE_4272",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4273",
+    "nom": "LIGNE_4273",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4274",
+    "nom": "LIGNE_4274",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4275",
+    "nom": "LIGNE_4275",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4276",
+    "nom": "LIGNE_4276",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4277",
+    "nom": "LIGNE_4277",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4278",
+    "nom": "LIGNE_4278",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4279",
+    "nom": "LIGNE_4279",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
+  },
+  {
+    "numero": "4280",
+    "nom": "LIGNE_4280",
+    "type": "autobus",
+    "jours": "L; M; M; J; V; S; D",
+    "heureDebut": "06h00",
+    "heureFin": "20h00",
+    "sens": []
   }
 ]
