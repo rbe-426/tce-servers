@@ -101,6 +101,61 @@ function ensureRequiredStrings(ligneData) {
   if (!ligneData.type) throw new Error(`type manquant pour la ligne ${ligneData.numero}`);
 }
 
+// ==================== NETTOYAGE ====================
+
+async function cleanupDuplicateSens() {
+  console.log("🧹 Suppression de TOUS les sens existants avant réimport...\n");
+  
+  const ligneNumerosToClean = LIGNES_DATA.map(l => l.numero);
+  
+  for (const numero of ligneNumerosToClean) {
+    try {
+      // Récupère la ligne
+      const ligne = await prisma.ligne.findUnique({
+        where: { numero }
+      });
+      
+      if (!ligne) {
+        console.log(`  ⚠️  Ligne ${numero} n'existe pas encore`);
+        continue;
+      }
+      
+      // Récupère tous les sens de cette ligne
+      const sensList = await prisma.sens.findMany({
+        where: { ligneId: ligne.id }
+      });
+      
+      if (sensList.length === 0) {
+        console.log(`  ℹ️  Aucun sens pour ligne ${numero}`);
+        continue;
+      }
+      
+      console.log(`  🗑️  Ligne ${numero}: Suppression de ${sensList.length} sens...`);
+      
+      // Supprime tous les services pour ces sens
+      const sensIds = sensList.map(s => s.id);
+      const deletedServices = await prisma.service.deleteMany({
+        where: {
+          sensId: { in: sensIds }
+        }
+      });
+      
+      console.log(`      ✓ ${deletedServices.count} services supprimés`);
+      
+      // Supprime tous les sens
+      const deletedSens = await prisma.sens.deleteMany({
+        where: { ligneId: ligne.id }
+      });
+      
+      console.log(`      ✓ ${deletedSens.count} sens supprimés`);
+    } catch (e) {
+      console.error(`  ❌ Erreur pour ligne ${numero}: ${e.message}`);
+    }
+  }
+  
+  console.log("\n✅ Nettoyage terminé\n");
+}
+
 // ==================== IMPORT ====================
 
 async function importLignes() {
@@ -112,6 +167,9 @@ async function importLignes() {
   const errors = [];
 
   try {
+    // D'abord nettoyer les doublons
+    await cleanupDuplicateSens();
+    
     for (const ligneData of LIGNES_DATA) {
       try {
         ensureRequiredStrings(ligneData);
