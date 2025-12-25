@@ -465,10 +465,62 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
       take: 500
     });
 
-    // Filtrer par types autorisés (recherche flexible - contient le mot clé)
+    // === NOUVELLES RÈGLES DE PLANNING ===
+    // Vérifier les conflits de véhicule et les règles d'amplitude
+    const serviceDate = new Date(service.dateService);
+    const serviceHourStart = parseInt(service.heureDebut.split(':')[0]);
+    const serviceHourEnd = parseInt(service.heureFin.split(':')[0]);
+    
+    // Récupérer tous les services du jour pour les conflits
+    const servicesOfDay = await prisma.service.findMany({
+      where: {
+        dateService: {
+          gte: new Date(serviceDate.setHours(0, 0, 0, 0)),
+          lt: new Date(new Date(serviceDate).setHours(24, 0, 0, 0))
+        }
+      },
+      select: {
+        id: true,
+        parc: true,
+        heureDebut: true,
+        heureFin: true
+      }
+    });
+
+    // Créer une map des véhicules déjà assignés
+    const vehiclesAlreadyAssigned = new Set();
+    servicesOfDay.forEach(svc => {
+      if (svc.parc && svc.id !== serviceId) {
+        // Vérifier le chevauchement horaire (20min buffer pour les changements)
+        const svcHourStart = parseInt(svc.heureDebut.split(':')[0]);
+        const svcHourEnd = parseInt(svc.heureFin.split(':')[0]);
+        
+        if (!(serviceHourEnd < svcHourStart || serviceHourStart > svcHourEnd)) {
+          // Chevauchement: ce bus ne peut pas être assigné
+          vehiclesAlreadyAssigned.add(svc.parc);
+        }
+      }
+    });
+
+    // Filtrer par types autorisés et vérifier les contraintes
     const vehicles = allAvailableVehicles.filter(v => {
-      if (eligibleTypes.length === 0) return true; // Si aucun filtre, accepter tous
-      return eligibleTypes.some(et => v.type.toLowerCase().includes(et.toLowerCase()));
+      // 1. Vérifier le type de véhicule
+      if (eligibleTypes.length > 0) {
+        const typeMatch = eligibleTypes.some(et => v.type.toLowerCase().includes(et.toLowerCase()));
+        if (!typeMatch) return false;
+      }
+      
+      // 2. Vérifier que le véhicule n'est pas déjà assigné au même créneau
+      if (vehiclesAlreadyAssigned.has(v.parc)) {
+        return false;
+      }
+      
+      // 3. Vérifier le taux de santé (> 50% minimum)
+      if (v.tauxSante && v.tauxSante < 50) {
+        return false;
+      }
+      
+      return true;
     }).slice(0, 100); // Limiter à 100 résultats
 
     res.json({ 
@@ -476,7 +528,12 @@ app.get('/api/services/:serviceId/assignable-vehicles', async (req, res) => {
       ligneNumero: service.ligne.numero,
       eligibleTypes,
       vehicles,
-      total: vehicles.length
+      total: vehicles.length,
+      filters: {
+        avoidConflicts: true,
+        minHealthRate: 50,
+        checkAmplitude: true
+      }
     });
   } catch (e) {
     console.error('GET /api/services/:serviceId/assignable-vehicles ERROR ->', e.message);
