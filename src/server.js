@@ -4821,8 +4821,66 @@ async function startServer() {
   app.get('/api/inter-depot-service-transfer', interDepotAuthRoutes.listInterDepotTransfers);
 
   console.log('[STARTUP] Mounting lignes routes...');
+  
+  // FALLBACK: Define inline if import fails
+  if (!lignesRoutes.assignLineToDepot) {
+    console.warn('[WARNING] lignesRoutes.assignLineToDepot not found in import, defining inline...');
+    lignesRoutes.assignLineToDepot = async (req, res) => {
+      try {
+        const { ligneId } = req.params;
+        const { etablissementId } = req.body;
+
+        const ligne = await prisma.ligne.findUnique({
+          where: { id: ligneId }
+        });
+        if (!ligne) {
+          return res.status(404).json({ error: 'Ligne non trouvée' });
+        }
+
+        if (etablissementId) {
+          const depot = await prisma.etablissement.findUnique({
+            where: { id: etablissementId }
+          });
+          if (!depot) {
+            return res.status(404).json({ error: 'Dépôt non trouvé' });
+          }
+        }
+
+        const updatedLigne = await prisma.ligne.update({
+          where: { id: ligneId },
+          data: {
+            etablissementId: etablissementId || null
+          },
+          include: {
+            etablissement: {
+              select: { id: true, nom: true }
+            }
+          }
+        });
+
+        res.json({
+          success: true,
+          ligne: updatedLigne,
+          message: `Ligne ${updatedLigne.numero} affectée à ${updatedLigne.etablissement?.nom || 'aucun dépôt'}`
+        });
+      } catch (e) {
+        console.error('Error in inline assignLineToDepot:', e);
+        res.status(500).json({ error: e.message });
+      }
+    };
+  }
+  
   app.put('/api/lignes/:ligneId/assign-depot', lignesRoutes.assignLineToDepot);
-  app.get('/api/lignes', lignesRoutes.getLines);
+  app.get('/api/lignes', lignesRoutes.getLines || async (req, res) => {
+    try {
+      const lignes = await prisma.ligne.findMany({
+        include: { etablissement: true }
+      });
+      res.json(lignes);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
   app.get('/api/lignes/:ligneId/available-vehicles', lignesRoutes.getAvailableVehiclesForLine);
   app.get('/api/lignes/:ligneId/available-conducteurs', lignesRoutes.getAvailableConductorsForLine);
 
