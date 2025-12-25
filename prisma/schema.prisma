@@ -75,6 +75,8 @@ model Employe {
   // Rôles & Affectations
   roles           EmployeRole[]
   mercatos        Mercato[]
+  immobilisationsCreated ImmobilisationRequest[] @relation("ImmobilisationsCreated")
+  immobilisationsApproved ImmobilisationRequest[] @relation("ImmobilisationsApproved")
 
   @@index([poste, statut])
   @@index([email])
@@ -125,6 +127,7 @@ model Vehicle {
   interventions     Intervention[]
   mercatos          VehicleMercato[]
   mercatoProposals  Mercato[]
+  immobilisations   ImmobilisationRequest[] @relation("VehicleImmobilisations")
 
   // Relation Etablissement
   etablissementId   String?
@@ -919,4 +922,47 @@ model InterDepotServiceTransfer {
   @@index([depotExecutionId])
   @@index([statut])
 }
+
+// ==================== IMMOBILISATIONS VÉHICULES ====================
+model ImmobilisationRequest {
+  id              String   @id @default(cuid())
+  
+  // Véhicule concerné
+  vehicleParc     String
+  vehicle         Vehicle  @relation("VehicleImmobilisations", fields: [vehicleParc], references: [parc], onDelete: Cascade)
+  
+  // Demandeur
+  createdById     String
+  createdBy       Employe  @relation("ImmobilisationsCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  // Approbateur (responsable dépôt qui approuve la demande)
+  approvedById    String?
+  approvedBy      Employe? @relation("ImmobilisationsApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  
+  // Dates
+  dateDebut       DateTime  // Date de début de l'immobilisation
+  dateFin         DateTime? // Date de fin (null = indéterminé)
+  dateCreated     DateTime  @default(now())
+  dateApproved    DateTime?
+  
+  // Raison de l'immobilisation
+  motif           String   // "Maintenance", "Réparation", "Révision", "Autre"
+  description     String   // Détails de l'opération
+  
+  // Statut
+  statut          String   @default("EN_ATTENTE") // "EN_ATTENTE", "APPROUVÉ", "REJETÉ", "COMPLÉTÉ"
+  raison_rejet    String?  // Si rejeté, raison
+  
+  // Demandeur spécifique
+  demandeurPoste  String   // "SAEIV", "Atelier", "Usine", etc. (défini par qui a demandé)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([vehicleParc])
+  @@index([createdById])
+  @@index([statut, dateDebut])
+  @@index([dateDebut, dateFin])
+}
+
 

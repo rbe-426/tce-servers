@@ -8,6 +8,7 @@ import * as mercatoRoutes from './routes/mercatos.js';
 import * as vehicleNeedsRoutes from './routes/vehicleNeeds.js';
 import * as interDepotAuthRoutes from './routes/interDepotAuth.js';
 import * as lignesRoutes from './routes/lignes.js';
+import * as immobilisationRoutes from './routes/immobilisations.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);
@@ -4811,6 +4812,15 @@ async function startServer() {
   app.put('/api/mercatos/:mercatoId/reject', mercatoRoutes.rejectMercato);
   app.put('/api/mercatos/:mercatoId/complete', mercatoRoutes.completeMercato);
   app.delete('/api/mercatos/:mercatoId', mercatoRoutes.deleteMercato);
+
+  console.log('[STARTUP] Mounting immobilisation routes...');
+  app.post('/api/immobilisations', immobilisationRoutes.createImmobilisation);
+  app.get('/api/immobilisations', immobilisationRoutes.listImmobilisations);
+  app.get('/api/immobilisations/:id', immobilisationRoutes.getImmobilisation);
+  app.put('/api/immobilisations/:id', immobilisationRoutes.updateImmobilisation);
+  app.put('/api/immobilisations/:id/complete', immobilisationRoutes.completeImmobilisation);
+  app.delete('/api/immobilisations/:id', immobilisationRoutes.deleteImmobilisation);
+  app.get('/api/immobilisations/vehicle/:vehicleParc/active', immobilisationRoutes.getActiveImmobilisationForVehicle);
 
   console.log('[STARTUP] Mounting vehicle needs routes...');
   app.post('/api/depots/:depotId/vehicle-needs', vehicleNeedsRoutes.setVehicleNeed);
