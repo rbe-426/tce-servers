@@ -4833,6 +4833,13 @@ async function startServer() {
   app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
 
   console.log('[STARTUP] Mounting campagnes ABRIBUS routes...');
+  
+  // DEBUG: Log specifically for campagnes route
+  app.use('/api/campagnes-abribus', (req, res, next) => {
+    console.log(`[CAMPAGNES-DEBUG] ${req.method} ${req.path} - full URL: ${req.originalUrl}`);
+    next();
+  });
+
   app.post('/api/campagnes-abribus/init', async (req, res) => {
     try {
       const existingCount = await prisma.campagneAbribus.count();
