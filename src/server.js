@@ -1365,55 +1365,8 @@ app.get('/api/lignes', async (_req, res) => {
         } 
       }
     });
-    
-    // Enrichir chaque sens avec son jourFonctionnement basé sur le calendrier de la ligne
-    const lignesEnrichies = lignes.map(ligne => ({
-      ...ligne,
-      sens: ligne.sens.map(sens => {
-        // Si le sens n'a pas de jourFonctionnement, le déduire du nom ou du calendrier
-        if (!sens.jourFonctionnement) {
-          let jourFonctionnement = 'SEMAINE';
-          
-          // Essayer de déduire du nom du sens
-          const nomLower = (sens.nom || '').toLowerCase();
-          if (nomLower.includes('samedi')) {
-            jourFonctionnement = 'SAMEDI';
-          } else if (nomLower.includes('dimanche') || nomLower.includes('dimanche/féries') || nomLower.includes('féries')) {
-            jourFonctionnement = 'DIMANCHE_FERIES';
-          } 
-          // Sinon essayer de déduire du calendrier de la ligne
-          else if (ligne.calendrierJson) {
-            try {
-              const calendrier = JSON.parse(ligne.calendrierJson);
-              const hasSamedi = calendrier.samedi === true;
-              const hasDimanche = calendrier.dimanche === true;
-              const hasWeekday = calendrier.lundi || calendrier.mardi || calendrier.mercredi || calendrier.jeudi || calendrier.vendredi;
-              
-              // Si UNIQUEMENT samedi (pas de jours de semaine)
-              if (hasSamedi && !hasWeekday) {
-                jourFonctionnement = 'SAMEDI';
-              }
-              // Si UNIQUEMENT dimanche/féries (pas de jours de semaine ni samedi)
-              else if (hasDimanche && !hasWeekday && !hasSamedi) {
-                jourFonctionnement = 'DIMANCHE_FERIES';
-              }
-              // Sinon c'est SEMAINE
-              else {
-                jourFonctionnement = 'SEMAINE';
-              }
-            } catch (e) {
-              // Si erreur parsing, garder la valeur par défaut
-            }
-          }
-          
-          return { ...sens, jourFonctionnement };
-        }
-        return sens;
-      })
-    }));
-    
-    console.log(`[API] GET /api/lignes - loaded ${lignesEnrichies.length} lignes`);
-    res.json(lignesEnrichies);
+    console.log(`[API] GET /api/lignes - loaded ${lignes.length} lignes`);
+    res.json(lignes);
   } catch (e) {
     console.error('GET /api/lignes ERROR ->', e);
     res.status(400).json({ error: String(e) });
@@ -2472,6 +2425,7 @@ app.post('/api/sens', async (req, res) => {
         direction: b.direction || null,
         ordre: b.ordre || 1,
         statut: b.statut || 'Actif',
+        jourFonctionnement: b.jourFonctionnement || 'SEMAINE',
       },
     });
 
@@ -2491,6 +2445,7 @@ app.put('/api/sens/:id', async (req, res) => {
       direction: b.direction ?? undefined,
       ordre: b.ordre ?? undefined,
       statut: b.statut ?? undefined,
+      jourFonctionnement: b.jourFonctionnement ?? undefined,
     };
 
     const sens = await prisma.sens.update({ where: { id: req.params.id }, data });
@@ -4744,6 +4699,48 @@ async function startServer() {
   }
 
   // ========== ADMIN ENDPOINT ==========
+  // Initialiser les jourFonctionnement des sens basé sur leur nom
+  app.post('/api/admin/init-jour-fonctionnement', async (_req, res) => {
+    try {
+      if (!prisma) {
+        return res.status(503).json({ error: 'Database not ready' });
+      }
+
+      console.log('[ADMIN] Initializing jourFonctionnement for all sens...');
+      
+      const allSens = await prisma.sens.findMany();
+      let updated = 0;
+
+      for (const sens of allSens) {
+        let jourFonctionnement = 'SEMAINE';
+        const nomLower = (sens.nom || '').toLowerCase();
+        
+        if (nomLower.includes('samedi')) {
+          jourFonctionnement = 'SAMEDI';
+        } else if (nomLower.includes('dimanche') || nomLower.includes('féries')) {
+          jourFonctionnement = 'DIMANCHE_FERIES';
+        }
+
+        if (sens.jourFonctionnement !== jourFonctionnement) {
+          await prisma.sens.update({
+            where: { id: sens.id },
+            data: { jourFonctionnement }
+          });
+          updated++;
+          console.log(`  ✓ ${sens.nom} → ${jourFonctionnement}`);
+        }
+      }
+
+      res.json({ 
+        message: `Initialized ${updated} sens with jourFonctionnement`,
+        updated
+      });
+    } catch (e) {
+      console.error('[ADMIN] Error initializing jourFonctionnement:', e);
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
   // Régénérer les services via une requête HTTP
   app.post('/api/admin/regenerate-services', async (_req, res) => {
     try {
