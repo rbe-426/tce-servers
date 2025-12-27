@@ -4741,6 +4741,66 @@ async function startServer() {
     }
   });
 
+  // Nettoyer les lignes : supprimer les en trop et créer les manquantes
+  app.post('/api/admin/cleanup-lignes', async (_req, res) => {
+    try {
+      if (!prisma) {
+        return res.status(503).json({ error: 'Database not ready' });
+      }
+
+      // Les lignes qui doivent exister (selon la spec)
+      const lignesValides = ['4201', '4202', '4203', '4205', '4206', '4212', '4214', '4215', '4216', '4217', '4218', '4219', '4220', '4221', '4222', '4223', '4230', '4232', '4233', '4240', '4241', '4242', '4243', '4244', '4245', '4246', '4250', '4251', '4270', '4271', '4272', '4273', '4274', '4275', '4276', '4277', '4278', '4279', '4280', 'N139'];
+
+      // Récupérer toutes les lignes actuelles
+      const lignesActuelles = await prisma.ligne.findMany({ select: { id: true, numero: true } });
+      const numerosActuels = lignesActuelles.map(l => l.numero);
+
+      let deleted = 0;
+      let created = 0;
+
+      // Supprimer les lignes qui ne sont pas dans la liste valide
+      for (const ligne of lignesActuelles) {
+        if (!lignesValides.includes(ligne.numero)) {
+          console.log(`[CLEANUP] Suppression de la ligne ${ligne.numero}...`);
+          // Supprimer les services d'abord
+          await prisma.service.deleteMany({ where: { ligneId: ligne.id } });
+          // Supprimer les sens
+          await prisma.sens.deleteMany({ where: { ligneId: ligne.id } });
+          // Supprimer la ligne
+          await prisma.ligne.delete({ where: { id: ligne.id } });
+          deleted++;
+        }
+      }
+
+      // Créer les lignes manquantes
+      for (const numero of lignesValides) {
+        const existe = lignesActuelles.find(l => l.numero === numero);
+        if (!existe) {
+          console.log(`[CLEANUP] Création de la ligne ${numero}...`);
+          await prisma.ligne.create({
+            data: {
+              numero,
+              nom: `LIGNE_${numero}`,
+              type: 'autobus',
+              calendrierJson: JSON.stringify({ lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: true, dimanche: true })
+            }
+          });
+          created++;
+        }
+      }
+
+      res.json({ 
+        message: `Cleanup terminé: ${deleted} lignes supprimées, ${created} lignes créées`,
+        deleted,
+        created,
+        total: lignesValides.length
+      });
+    } catch (e) {
+      console.error('[CLEANUP] Error:', e);
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
   // Régénérer les services via une requête HTTP
   app.post('/api/admin/regenerate-services', async (_req, res) => {
     try {
