@@ -4839,7 +4839,7 @@ async function startServer() {
     const campagnesAbribusRouter = campagnesAbribusRouterFactory(prisma);
     console.log('[DEBUG] campagnesAbribusRouter type:', typeof campagnesAbribusRouter);
     console.log('[DEBUG] campagnesAbribusRouter stack length:', campagnesAbribusRouter?.stack?.length || 'no stack');
-    app.use('/api', campagnesAbribusRouter);
+    app.use('/api/campagnes-abribus', campagnesAbribusRouter);
     console.log('[DEBUG] Campagnes routes mounted successfully');
   } catch (err) {
     console.error('[ERROR] Failed to mount campagnes routes:', err.message);

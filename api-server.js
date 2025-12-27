@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes Campagnes ABRIBUS
-app.use('/api', campagnesAbribusRouter);
+app.use('/api/campagnes-abribus', campagnesAbribusRouter);
 
 // Routes de diagnostic
 app.get('/', (req, res) => {
