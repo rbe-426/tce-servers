@@ -1,15 +1,16 @@
 import express from 'express';
 
 export default function createCampagnesAbribusRouter(prisma) {
+  console.log('[CAMPAGNES-ROUTER] Creating router with prisma:', !!prisma);
   const router = express.Router();
 
   // ===== CAMPAGNES =====
 
-// Initialiser les campagnes (admin)
-router.post('/campagnes-abribus/init', async (req, res) => {
-  try {
-    // Vérifier si les campagnes existent déjà
-    const existingCount = await prisma.campagneAbribus.count();
+  // Initialiser les campagnes (admin)
+  router.post('/campagnes-abribus/init', async (req, res) => {
+    try {
+      // Vérifier si les campagnes existent déjà
+      const existingCount = await prisma.campagneAbribus.count();
     
     if (existingCount === 0) {
       const campagnes = [
