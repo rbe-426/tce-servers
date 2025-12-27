@@ -1357,8 +1357,7 @@ app.get('/api/lignes', async (_req, res) => {
             services: { 
               orderBy: { heureDebut: 'asc' },
               include: { 
-                conducteur: true,
-                sens: true
+                conducteur: true
               }
             }
           }
@@ -4797,6 +4796,56 @@ async function startServer() {
       });
     } catch (e) {
       console.error('[CLEANUP] Error:', e);
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  // Nettoyer les types de véhicules : transformer AUTOBUS/autobus en TCP - Autobus Standard
+  app.post('/api/admin/fix-vehicle-types', async (_req, res) => {
+    try {
+      const lignes = await prisma.ligne.findMany();
+      let fixedCount = 0;
+      const fixes = [];
+
+      for (const ligne of lignes) {
+        const types = JSON.parse(ligne.typesVehicules || '[]');
+        // Chercher des variantes : AUTOBUS, autobus, Autobus, etc.
+        const hasInvalidAutobus = types.some(t => 
+          typeof t === 'string' && t.toLowerCase().includes('autobus') && !t.includes('TCP')
+        );
+        
+        if (hasInvalidAutobus) {
+          // Remplacer les variantes par TCP - Autobus Standard
+          const newTypes = types.map(t => {
+            if (typeof t === 'string' && t.toLowerCase().includes('autobus') && !t.includes('TCP')) {
+              return 'TCP - Autobus Standard';
+            }
+            return t;
+          });
+          // Dédupliquer au cas où
+          const uniqueTypes = [...new Set(newTypes)];
+          
+          await prisma.ligne.update({
+            where: { id: ligne.id },
+            data: { typesVehicules: JSON.stringify(uniqueTypes) }
+          });
+          fixedCount++;
+          fixes.push({
+            numero: ligne.numero,
+            nom: ligne.nom,
+            before: types,
+            after: uniqueTypes
+          });
+        }
+      }
+
+      res.json({
+        message: `${fixedCount} lignes corrigées`,
+        fixed: fixedCount,
+        details: fixes
+      });
+    } catch (e) {
+      console.error('POST /api/admin/fix-vehicle-types ERROR ->', e);
       res.status(500).json({ error: String(e) });
     }
   });
