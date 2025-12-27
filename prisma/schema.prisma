@@ -128,6 +128,9 @@ model Vehicle {
   mercatos          VehicleMercato[]
   mercatoProposals  Mercato[]
   immobilisations   ImmobilisationRequest[] @relation("VehicleImmobilisations")
+  verifications     VerificationCampagne[] @relation("VerificationCampagne")
+  indisponibilites  IndisponibiliteProgrammee[] @relation("IndisponibiliteProgrammee")
+  resolutions       ResolutionCarrosserie[] @relation("ResolutionCarrosserie")
 
   // Relation Etablissement
   etablissementId   String?
@@ -963,6 +966,134 @@ model ImmobilisationRequest {
   @@index([createdById])
   @@index([statut, dateDebut])
   @@index([dateDebut, dateFin])
+}
+
+// ===== CAMPAGNES ABRIBUS =====
+
+model CampagneAbribus {
+  id              String   @id @default(cuid())
+  type            String   // "VERIFICATION_CARROSSERIE", "VERIFICATION_CHAUFFAGE", "VERIFICATION_SAEIV"
+  nom             String
+  description     String?
+  dateDebut       DateTime
+  dateFin         DateTime
+  statut          String   @default("EN_COURS") // "EN_COURS", "TERMINÉE", "ANNULÉE"
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  verifications   VerificationCampagne[]
+  indisponibilites IndisponibiliteProgrammee[]
+  
+  @@index([type, statut])
+  @@index([dateDebut, dateFin])
+}
+
+model VerificationCampagne {
+  id              String   @id @default(cuid())
+  
+  // Campagne
+  campagneId      String
+  campagne        CampagneAbribus @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+  
+  // Véhicule
+  vehicleParc     String
+  vehicle         Vehicle @relation("VerificationCampagne", fields: [vehicleParc], references: [parc], onDelete: Cascade)
+  
+  // Agent qui a effectué la vérification
+  agentNom        String
+  agentPrenom     String
+  
+  // Date et heure
+  dateVerification DateTime
+  heureVerification String // Format HH:mm
+  
+  // Anomalies détectées
+  anomaliesJson   String  // JSON stringifié: [{"id": "rayures", "label": "Rayures"}]
+  
+  // Notes
+  notes           String?
+  
+  // Photos (IDs stockés)
+  photosJson      String? // JSON: [{"nom": "photo1.jpg", "path": "/uploads/..."}]
+  
+  // Statut de la vérification
+  statut          String  @default("VÉRIFIÉE") // "VÉRIFIÉE", "EN_ATTENTE", "REJETÉE"
+  
+  // Relation inverse pour ResolutionCarrosserie
+  resolution      ResolutionCarrosserie?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([campagneId, vehicleParc])
+  @@index([campagneId])
+  @@index([vehicleParc])
+  @@index([dateVerification])
+}
+
+model IndisponibiliteProgrammee {
+  id              String   @id @default(cuid())
+  
+  // Campagne
+  campagneId      String
+  campagne        CampagneAbribus @relation(fields: [campagneId], references: [id], onDelete: Cascade)
+  
+  // Véhicule
+  vehicleParc     String
+  vehicle         Vehicle @relation("IndisponibiliteProgrammee", fields: [vehicleParc], references: [parc], onDelete: Cascade)
+  
+  // Dates
+  dateDebut       DateTime
+  dateFin         DateTime
+  
+  // Motif (pour notification DG)
+  motif           String
+  
+  // Statut
+  statut          String  @default("PROGRAMMÉE") // "PROGRAMMÉE", "EFFECTUÉE", "ANNULÉE"
+  notificationDG  Boolean @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([vehicleParc])
+  @@index([dateDebut, dateFin])
+  @@index([statut])
+}
+
+// Pour la campagne "Résolution Carrosserie" - tracking des anomalies et résolutions
+model ResolutionCarrosserie {
+  id              String   @id @default(cuid())
+  
+  // Référence à la vérification originale
+  verificationId  String
+  verification    VerificationCampagne @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  
+  // Véhicule
+  vehicleParc     String
+  vehicle         Vehicle @relation("ResolutionCarrosserie", fields: [vehicleParc], references: [parc], onDelete: Cascade)
+  
+  // Anomalies de la vérification
+  anomaliesOriginales String // JSON copie des anomalies trouvées
+  
+  // Suivi de résolution
+  statut          String  @default("EN_ATTENTE") // "EN_ATTENTE", "EN_COURS", "RÉSOLUÉE", "REJETÉE"
+  dateDebut       DateTime?
+  dateCompletion  DateTime?
+  
+  // Atelier
+  motifsIntervention String? // Notes détaillées pour l'atelier
+  resultat        String? // "CONFORME", "PARTIELLEMENT", "NON_CONFORME"
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([verificationId])
+  @@index([vehicleParc])
+  @@index([statut])
 }
 
 

@@ -2,6 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
+import campagnesAbribusRouter from './src/routes/campagnesAbribus.js';
 
 const app = express();
 const PORT = process.env.PORT || 8081;
@@ -10,6 +11,9 @@ const prisma = new PrismaClient();
 // CORS pour toutes les origines
 app.use(cors());
 app.use(express.json());
+
+// Routes Campagnes ABRIBUS
+app.use('/api', campagnesAbribusRouter);
 
 // Routes de diagnostic
 app.get('/', (req, res) => {
