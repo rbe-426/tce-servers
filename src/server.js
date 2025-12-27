@@ -4782,6 +4782,7 @@ async function startServer() {
               numero,
               nom: `LIGNE_${numero}`,
               type: 'autobus',
+              typesVehicules: 'TCP - Autobus Standard',
               calendrierJson: JSON.stringify({ lundi: true, mardi: true, mercredi: true, jeudi: true, vendredi: true, samedi: true, dimanche: true })
             }
           });
