@@ -4590,20 +4590,6 @@ app.patch('/api/notifications/:id/disable', async (req, res) => {
   }
 });
 
-// ---------- 404 handler (DOIT ÊTRE APRÈS TOUTES LES ROUTES) ----------
-app.use((req, res) => {
-  const origin = req.headers.origin;
-  res.header('Access-Control-Allow-Origin', origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  res.status(404).json({
-    error: 'Not found',
-    path: req.path,
-  });
-});
-
 // ---------- start ----------
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';
@@ -4928,6 +4914,20 @@ async function startServer() {
         lignes_getLines: 'GET /api/lignes',
         services_assignable_conductors: 'GET /api/services/:serviceId/assignable-conductors'
       }
+    });
+  });
+
+  // ---------- 404 handler (DOIT ÊTRE APRÈS TOUTES LES ROUTES) ----------
+  app.use((req, res) => {
+    const origin = req.headers.origin;
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    res.status(404).json({
+      error: 'Not found',
+      path: req.path,
     });
   });
 
