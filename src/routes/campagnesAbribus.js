@@ -1,10 +1,9 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 
-const router = express.Router();
-const prisma = new PrismaClient();
+export default function createCampagnesAbribusRouter(prisma) {
+  const router = express.Router();
 
-// ===== CAMPAGNES =====
+  // ===== CAMPAGNES =====
 
 // Initialiser les campagnes (admin)
 router.post('/campagnes-abribus/init', async (req, res) => {
@@ -524,4 +523,5 @@ router.get('/campagnes-abribus/:campagneId/stats', async (req, res) => {
   }
 });
 
-export default router;
+  return router;
+}

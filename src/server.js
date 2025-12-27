@@ -9,7 +9,7 @@ import * as vehicleNeedsRoutes from './routes/vehicleNeeds.js';
 import * as interDepotAuthRoutes from './routes/interDepotAuth.js';
 import * as lignesRoutes from './routes/lignes.js';
 import * as immobilisationRoutes from './routes/immobilisations.js';
-import campagnesAbribusRouter from './routes/campagnesAbribus.js';
+import campagnesAbribusRouterFactory from './routes/campagnesAbribus.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);
@@ -4833,6 +4833,7 @@ async function startServer() {
   app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
 
   console.log('[STARTUP] Mounting campagnes ABRIBUS routes...');
+  const campagnesAbribusRouter = campagnesAbribusRouterFactory(prisma);
   app.use('/api', campagnesAbribusRouter);
 
   console.log('[STARTUP] Mounting inter-depot authorization routes...');
