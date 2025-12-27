@@ -1365,8 +1365,55 @@ app.get('/api/lignes', async (_req, res) => {
         } 
       }
     });
-    console.log(`[API] GET /api/lignes - loaded ${lignes.length} lignes`);
-    res.json(lignes);
+    
+    // Enrichir chaque sens avec son jourFonctionnement basé sur le calendrier de la ligne
+    const lignesEnrichies = lignes.map(ligne => ({
+      ...ligne,
+      sens: ligne.sens.map(sens => {
+        // Si le sens n'a pas de jourFonctionnement, le déduire du nom ou du calendrier
+        if (!sens.jourFonctionnement) {
+          let jourFonctionnement = 'SEMAINE';
+          
+          // Essayer de déduire du nom du sens
+          const nomLower = (sens.nom || '').toLowerCase();
+          if (nomLower.includes('samedi')) {
+            jourFonctionnement = 'SAMEDI';
+          } else if (nomLower.includes('dimanche') || nomLower.includes('dimanche/féries') || nomLower.includes('féries')) {
+            jourFonctionnement = 'DIMANCHE_FERIES';
+          } 
+          // Sinon essayer de déduire du calendrier de la ligne
+          else if (ligne.calendrierJson) {
+            try {
+              const calendrier = JSON.parse(ligne.calendrierJson);
+              const hasSamedi = calendrier.samedi === true;
+              const hasDimanche = calendrier.dimanche === true;
+              const hasWeekday = calendrier.lundi || calendrier.mardi || calendrier.mercredi || calendrier.jeudi || calendrier.vendredi;
+              
+              // Si UNIQUEMENT samedi (pas de jours de semaine)
+              if (hasSamedi && !hasWeekday) {
+                jourFonctionnement = 'SAMEDI';
+              }
+              // Si UNIQUEMENT dimanche/féries (pas de jours de semaine ni samedi)
+              else if (hasDimanche && !hasWeekday && !hasSamedi) {
+                jourFonctionnement = 'DIMANCHE_FERIES';
+              }
+              // Sinon c'est SEMAINE
+              else {
+                jourFonctionnement = 'SEMAINE';
+              }
+            } catch (e) {
+              // Si erreur parsing, garder la valeur par défaut
+            }
+          }
+          
+          return { ...sens, jourFonctionnement };
+        }
+        return sens;
+      })
+    }));
+    
+    console.log(`[API] GET /api/lignes - loaded ${lignesEnrichies.length} lignes`);
+    res.json(lignesEnrichies);
   } catch (e) {
     console.error('GET /api/lignes ERROR ->', e);
     res.status(400).json({ error: String(e) });
