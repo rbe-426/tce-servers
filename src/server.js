@@ -4837,6 +4837,8 @@ async function startServer() {
   console.log('[DEBUG] prisma:', typeof prisma);
   try {
     const campagnesAbribusRouter = campagnesAbribusRouterFactory(prisma);
+    console.log('[DEBUG] campagnesAbribusRouter type:', typeof campagnesAbribusRouter);
+    console.log('[DEBUG] campagnesAbribusRouter stack length:', campagnesAbribusRouter?.stack?.length || 'no stack');
     app.use('/api', campagnesAbribusRouter);
     console.log('[DEBUG] Campagnes routes mounted successfully');
   } catch (err) {

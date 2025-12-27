@@ -7,7 +7,8 @@ export default function createCampagnesAbribusRouter(prisma) {
   // ===== CAMPAGNES =====
 
   // Initialiser les campagnes (admin)
-  router.post('/campagnes-abribus/init', async (req, res) => {
+  console.log('[CAMPAGNES-ROUTER] Registering POST /init');
+  router.post('/init', async (req, res) => {
     try {
       // Vérifier si les campagnes existent déjà
       const existingCount = await prisma.campagneAbribus.count();
@@ -61,7 +62,9 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Récupérer toutes les campagnes
-  router.get('/campagnes-abribus', async (req, res) => {
+  console.log('[CAMPAGNES-ROUTER] Registering GET /');
+  router.get('/', async (req, res) => {
+    console.log('[CAMPAGNES] ✅ GET /campagnes-abribus route HIT!');
     console.log('[CAMPAGNES] GET /campagnes-abribus called');
     try {
       const campagnes = await prisma.campagneAbribus.findMany({
@@ -83,7 +86,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Récupérer une campagne avec détails
-  router.get('/campagnes-abribus/:id', async (req, res) => {
+  router.get('/:id', async (req, res) => {
     try {
       const campagne = await prisma.campagneAbribus.findUnique({
         where: { id: req.params.id },
@@ -109,7 +112,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Créer une campagne (admin)
-  router.post('/campagnes-abribus', async (req, res) => {
+  router.post('/', async (req, res) => {
     try {
       const { type, nom, description, dateDebut, dateFin } = req.body;
 
@@ -137,7 +140,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   // ===== VÉRIFICATIONS =====
 
   // Soumettre une vérification
-  router.post('/campagnes-abribus/:campagneId/verifications', async (req, res) => {
+  router.post('/:campagneId/verifications', async (req, res) => {
     try {
       const { vehicleParc, agentNom, agentPrenom, dateVerification, heureVerification, anomalies, notes, photos } = req.body;
       const { campagneId } = req.params;
@@ -208,7 +211,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Récupérer les vérifications d'une campagne
-  router.get('/campagnes-abribus/:campagneId/verifications', async (req, res) => {
+  router.get('/:campagneId/verifications', async (req, res) => {
     try {
       const { campagneId } = req.params;
       const { statut } = req.query;
@@ -261,7 +264,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   // ===== INDISPONIBILITÉS =====
 
   // Programmer une indisponibilité (pour Chauffage/SAEIV)
-  router.post('/campagnes-abribus/:campagneId/indisponibilites', async (req, res) => {
+  router.post('/:campagneId/indisponibilites', async (req, res) => {
     try {
       const { vehicleParc, dateDebut, dateFin, motif } = req.body;
       const { campagneId } = req.params;
@@ -325,7 +328,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Récupérer les indisponibilités d'une campagne
-  router.get('/campagnes-abribus/:campagneId/indisponibilites', async (req, res) => {
+  router.get('/:campagneId/indisponibilites', async (req, res) => {
     try {
       const { campagneId } = req.params;
       const { statut } = req.query;
@@ -466,7 +469,7 @@ export default function createCampagnesAbribusRouter(prisma) {
   });
 
   // Statistiques d'une campagne
-  router.get('/campagnes-abribus/:campagneId/stats', async (req, res) => {
+  router.get('/:campagneId/stats', async (req, res) => {
     try {
       const { campagneId } = req.params;
 
