@@ -4833,8 +4833,16 @@ async function startServer() {
   app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
 
   console.log('[STARTUP] Mounting campagnes ABRIBUS routes...');
-  const campagnesAbribusRouter = campagnesAbribusRouterFactory(prisma);
-  app.use('/api', campagnesAbribusRouter);
+  console.log('[DEBUG] campagnesAbribusRouterFactory:', typeof campagnesAbribusRouterFactory);
+  console.log('[DEBUG] prisma:', typeof prisma);
+  try {
+    const campagnesAbribusRouter = campagnesAbribusRouterFactory(prisma);
+    app.use('/api', campagnesAbribusRouter);
+    console.log('[DEBUG] Campagnes routes mounted successfully');
+  } catch (err) {
+    console.error('[ERROR] Failed to mount campagnes routes:', err.message);
+    throw err;
+  }
 
   console.log('[STARTUP] Mounting inter-depot authorization routes...');
   app.post('/api/lignes/:ligneId/inter-depot-auth', interDepotAuthRoutes.createInterDepotAuth);

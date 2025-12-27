@@ -1,7 +1,7 @@
 import express from 'express';
 
 export default function createCampagnesAbribusRouter(prisma) {
-  console.log('[CAMPAGNES-ROUTER] Creating router with prisma:', !!prisma);
+  console.log('[CAMPAGNES-ROUTER] ✅ FIXED VERSION - Creating router with prisma:', !!prisma);
   const router = express.Router();
 
   // ===== CAMPAGNES =====
