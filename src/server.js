@@ -9,6 +9,7 @@ import * as vehicleNeedsRoutes from './routes/vehicleNeeds.js';
 import * as interDepotAuthRoutes from './routes/interDepotAuth.js';
 import * as lignesRoutes from './routes/lignes.js';
 import * as immobilisationRoutes from './routes/immobilisations.js';
+import campagnesAbribusRouter from './routes/campagnesAbribus.js';
 
 console.log('[INIT] Starting server initialization...');
 console.log('[INIT] NODE_ENV:', process.env.NODE_ENV);
@@ -4604,7 +4605,7 @@ app.use((req, res) => {
 });
 
 // ---------- start ----------
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';
 
 console.log('[STARTUP] Configured PORT:', PORT);
@@ -4830,6 +4831,9 @@ async function startServer() {
   app.put('/api/vehicle-needs/:needId', vehicleNeedsRoutes.updateVehicleNeedStatus);
   app.delete('/api/vehicle-needs/:needId', vehicleNeedsRoutes.deleteVehicleNeed);
   app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
+
+  console.log('[STARTUP] Mounting campagnes ABRIBUS routes...');
+  app.use('/api', campagnesAbribusRouter);
 
   console.log('[STARTUP] Mounting inter-depot authorization routes...');
   app.post('/api/lignes/:ligneId/inter-depot-auth', interDepotAuthRoutes.createInterDepotAuth);

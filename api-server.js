@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import campagnesAbribusRouter from './src/routes/campagnesAbribus.js';
 
 const app = express();
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8080;
 const prisma = new PrismaClient();
 
 // CORS pour toutes les origines
