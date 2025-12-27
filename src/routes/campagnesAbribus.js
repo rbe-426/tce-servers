@@ -4,8 +4,6 @@ import { PrismaClient } from '@prisma/client';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-console.log('[INIT] campagnesAbribus router initialized');
-
 // ===== CAMPAGNES =====
 
 // Initialiser les campagnes (admin)

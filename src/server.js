@@ -4833,77 +4833,7 @@ async function startServer() {
   app.get('/api/vehicle-types', vehicleNeedsRoutes.listVehicleTypes);
 
   console.log('[STARTUP] Mounting campagnes ABRIBUS routes...');
-  
-  // DEBUG: Log specifically for campagnes route
-  app.use('/api/campagnes-abribus', (req, res, next) => {
-    console.log(`[CAMPAGNES-DEBUG] ${req.method} ${req.path} - full URL: ${req.originalUrl}`);
-    next();
-  });
-
-  app.post('/api/campagnes-abribus/init', async (req, res) => {
-    try {
-      const existingCount = await prisma.campagneAbribus.count();
-      if (existingCount === 0) {
-        const campagnes = [
-          {
-            type: 'VERIFICATION_CARROSSERIE',
-            nom: 'Relevé Carrosserie',
-            description: 'Relevé complet de l\'état de la carrosserie pour tous les véhicules',
-            dateDebut: new Date('2026-01-01'),
-            dateFin: new Date('2026-02-01'),
-            statut: 'EN_COURS'
-          },
-          {
-            type: 'VERIFICATION_CHAUFFAGE',
-            nom: 'Vérification Chauffages',
-            description: 'Vérification des systèmes de chauffage conducteurs et voyageurs',
-            dateDebut: new Date('2026-01-05'),
-            dateFin: new Date('2026-02-15'),
-            statut: 'EN_COURS'
-          },
-          {
-            type: 'VERIFICATION_SAEIV',
-            nom: 'Vérification SAEIV',
-            description: 'Contrôle des systèmes de sécurité et d\'accessibilité des véhicules',
-            dateDebut: new Date('2026-01-10'),
-            dateFin: new Date('2026-02-20'),
-            statut: 'EN_COURS'
-          }
-        ];
-        const created = [];
-        for (const campagne of campagnes) {
-          const result = await prisma.campagneAbribus.create({ data: campagne });
-          created.push(result);
-        }
-        return res.status(201).json({ message: 'Campagnes créées avec succès', created });
-      }
-      res.json({ message: 'Campagnes existent déjà' });
-    } catch (err) {
-      console.error('Erreur init campagnes:', err);
-      res.status(500).json({ error: 'Erreur création campagnes' });
-    }
-  });
-
-  app.get('/api/campagnes-abribus', async (req, res) => {
-    console.log('[CAMPAGNES] GET /campagnes-abribus called');
-    try {
-      const campagnes = await prisma.campagneAbribus.findMany({
-        orderBy: { dateDebut: 'desc' },
-        include: {
-          _count: {
-            select: {
-              verifications: true,
-              indisponibilites: true
-            }
-          }
-        }
-      });
-      res.json(campagnes);
-    } catch (err) {
-      console.error('Erreur récupération campagnes:', err);
-      res.status(500).json({ error: 'Erreur récupération campagnes' });
-    }
-  });
+  app.use('/api', campagnesAbribusRouter);
 
   console.log('[STARTUP] Mounting inter-depot authorization routes...');
   app.post('/api/lignes/:ligneId/inter-depot-auth', interDepotAuthRoutes.createInterDepotAuth);
