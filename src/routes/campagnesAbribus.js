@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+console.log('[INIT] campagnesAbribus router initialized');
+
 // ===== CAMPAGNES =====
 
 // Initialiser les campagnes (admin)
@@ -62,6 +64,7 @@ router.post('/campagnes-abribus/init', async (req, res) => {
 
 // Récupérer toutes les campagnes
 router.get('/campagnes-abribus', async (req, res) => {
+  console.log('[CAMPAGNES] GET /campagnes-abribus called');
   try {
     const campagnes = await prisma.campagneAbribus.findMany({
       orderBy: { dateDebut: 'desc' },
